@@ -1,0 +1,121 @@
+/* Jira JQL Explorer Styles */
+
+.root {
+    -fx-font-family: "System";
+    -fx-font-size: 13px;
+    -fx-background-color: #f4f5f7;
+}
+
+.label {
+    -fx-text-fill: #172B4D;
+}
+
+.text-field {
+    -fx-background-color: white;
+    -fx-border-color: #dfe1e6;
+    -fx-border-radius: 3px;
+    -fx-background-radius: 3px;
+    -fx-padding: 5px;
+}
+
+.text-field:focused {
+    -fx-border-color: #0052CC;
+    -fx-border-width: 2px;
+}
+
+.text-area {
+    -fx-background-color: white;
+    -fx-border-color: #dfe1e6;
+    -fx-border-radius: 3px;
+    -fx-background-radius: 3px;
+}
+
+.text-area .content {
+    -fx-background-color: white;
+}
+
+.button {
+    -fx-background-color: #0052CC;
+    -fx-text-fill: white;
+    -fx-background-radius: 3px;
+    -fx-padding: 8px 16px;
+    -fx-cursor: hand;
+}
+
+.button:hover {
+    -fx-background-color: #0065FF;
+}
+
+.button:pressed {
+    -fx-background-color: #0747A6;
+}
+
+.button:disabled {
+    -fx-background-color: #A5ADBA;
+    -fx-opacity: 0.6;
+}
+
+.list-view {
+    -fx-background-color: white;
+    -fx-border-color: #dfe1e6;
+    -fx-border-radius: 3px;
+    -fx-background-radius: 3px;
+}
+
+.list-view .list-cell {
+    -fx-background-color: white;
+    -fx-text-fill: #172B4D;
+    -fx-padding: 8px;
+}
+
+.list-view .list-cell:selected {
+    -fx-background-color: #DEEBFF;
+    -fx-text-fill: #0052CC;
+}
+
+.list-view .list-cell:hover {
+    -fx-background-color: #F4F5F7;
+}
+
+.table-view {
+    -fx-background-color: white;
+    -fx-border-color: #dfe1e6;
+    -fx-border-radius: 3px;
+    -fx-background-radius: 3px;
+}
+
+.table-view .column-header {
+    -fx-background-color: #F4F5F7;
+    -fx-text-fill: #172B4D;
+    -fx-font-weight: bold;
+}
+
+.table-view .table-cell {
+    -fx-text-fill: #172B4D;
+    -fx-padding: 5px;
+}
+
+.table-row-cell:selected {
+    -fx-background-color: #DEEBFF;
+}
+
+.split-pane {
+    -fx-background-color: #f4f5f7;
+}
+
+.split-pane-divider {
+    -fx-background-color: #dfe1e6;
+    -fx-padding: 0 1px 0 1px;
+}
+
+/* Status label styles */
+#statusLabel {
+    -fx-font-size: 12px;
+    -fx-padding: 5px;
+}
+
+/* Info label styles */
+#infoLabel {
+    -fx-font-size: 12px;
+    -fx-text-fill: #5E6C84;
+}
