@@ -291,26 +291,47 @@ Private Function ExtractIssues(jsonResponse As Object) As Collection
             ' For JScript arrays, we need to iterate until we hit undefined
             ' since .length property doesn't work correctly with COM
             i = 0
-            On Error Resume Next
             Do
+                Err.Clear
                 Set issue = Nothing
+
+                On Error Resume Next
                 Set issue = issuesArray(i)
+
+                Debug.Print "Index " & i & ": Err.Number = " & Err.Number & ", TypeName = " & TypeName(issue)
 
                 ' Check if we got an error or Nothing (end of array)
                 If Err.Number <> 0 Then
-                    Debug.Print "Reached end of array at index " & i
+                    Debug.Print "Error at index " & i & ": " & Err.Description
                     Err.Clear
                     Exit Do
                 End If
 
+                ' Check if issue is Nothing using IsEmpty or IsNull for JScript objects
+                Dim isEmpty As Boolean
+                isEmpty = False
+
                 If issue Is Nothing Then
-                    Debug.Print "issue is Nothing at index " & i
+                    isEmpty = True
+                ElseIf TypeName(issue) = "Nothing" Then
+                    isEmpty = True
+                ElseIf TypeName(issue) = "Empty" Then
+                    isEmpty = True
+                ElseIf IsEmpty(issue) Then
+                    isEmpty = True
+                End If
+
+                Debug.Print "Index " & i & ": isEmpty = " & isEmpty
+
+                If isEmpty Then
+                    Debug.Print "Empty element at index " & i & ", stopping"
                     Exit Do
                 End If
 
                 ' Successfully got an issue, add it to collection
+                On Error GoTo 0
                 issues.Add issue
-                Debug.Print "Added issue " & i
+                Debug.Print "Successfully added issue " & i
                 i = i + 1
 
                 ' Safety limit to prevent infinite loop
