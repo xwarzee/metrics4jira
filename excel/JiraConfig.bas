@@ -245,7 +245,8 @@ End Function
 Public Function GetAuthHeader() As String
     Dim credentials As String
     credentials = Config.Username & ":" & Config.ApiToken
-    GetAuthHeader = "Basic " & Base64Encode(credentials)
+'   GetAuthHeader = "Basic " & Base64Encode(credentials)
+    GetAuthHeader = "Bearer " & Config.ApiToken 
 End Function
 
 ' ==========================================
