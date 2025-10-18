@@ -288,29 +288,39 @@ Private Function ExtractIssues(jsonResponse As Object) As Collection
             Debug.Print "issuesArray is not Nothing"
             Debug.Print "issuesArray type: " & TypeName(issuesArray)
 
-            ' Try to get length property
+            ' For JScript arrays, we need to iterate until we hit undefined
+            ' since .length property doesn't work correctly with COM
+            i = 0
             On Error Resume Next
-            Dim issueCount As Long
-            issueCount = issuesArray.length
-            If Err.Number <> 0 Then
-                Err.Clear
-                issueCount = issuesArray.Length
-            End If
-            Debug.Print "issuesArray length: " & issueCount
+            Do
+                Set issue = Nothing
+                Set issue = issuesArray(i)
 
-            ' Iterate using index instead of For Each
-            If issueCount > 0 Then
-                For i = 0 To issueCount - 1
-                    On Error Resume Next
-                    Set issue = issuesArray(i)
-                    If Err.Number = 0 And Not issue Is Nothing Then
-                        issues.Add issue
-                    Else
-                        Debug.Print "Error accessing issue " & i & ": " & Err.Description
-                        Err.Clear
-                    End If
-                Next i
-            End If
+                ' Check if we got an error or Nothing (end of array)
+                If Err.Number <> 0 Then
+                    Debug.Print "Reached end of array at index " & i
+                    Err.Clear
+                    Exit Do
+                End If
+
+                If issue Is Nothing Then
+                    Debug.Print "issue is Nothing at index " & i
+                    Exit Do
+                End If
+
+                ' Successfully got an issue, add it to collection
+                issues.Add issue
+                Debug.Print "Added issue " & i
+                i = i + 1
+
+                ' Safety limit to prevent infinite loop
+                If i > 10000 Then
+                    Debug.Print "Safety limit reached"
+                    Exit Do
+                End If
+            Loop
+
+            Debug.Print "Total issues extracted: " & i
         Else
             Debug.Print "issuesArray is Nothing"
         End If
