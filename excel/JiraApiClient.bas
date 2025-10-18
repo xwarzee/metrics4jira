@@ -293,38 +293,36 @@ Private Function ExtractIssues(jsonResponse As Object, Optional jsonString As St
             Set scriptControl = CreateObject("ScriptControl")
             scriptControl.Language = "JScript"
 
-            ' Add the issues array to ScriptControl
-            scriptControl.AddCode "var issuesArray = " & jsonString & ";"
+            ' Add the full JSON response to ScriptControl
+            scriptControl.AddCode "var jiraResponse = " & jsonString & ";"
+
+            ' Add a simple stringify function for older JScript
+            scriptControl.AddCode "function getIssue(index) { return jiraResponse.issues[index]; }"
 
             ' Get the count using JScript
             On Error Resume Next
-            i = scriptControl.Eval("issuesArray.issues.length")
+            i = scriptControl.Eval("jiraResponse.issues.length")
             Debug.Print "Array length from JScript: " & i
 
             If Err.Number = 0 And i > 0 Then
-                ' Extract each issue using JScript eval
+                ' Extract each issue directly as an object
                 Dim j As Long
                 For j = 0 To i - 1
                     Err.Clear
                     Set issue = Nothing
 
-                    ' Get issue as JSON string then parse it
-                    Dim issueJson As String
-                    issueJson = scriptControl.Eval("JSON.stringify(issuesArray.issues[" & j & "])")
+                    ' Get the issue object directly from ScriptControl
+                    Set issue = scriptControl.Run("getIssue", j)
 
-                    If Err.Number = 0 And Len(issueJson) > 0 Then
-                        ' Parse the individual issue
-                        Set issue = ParseJson(issueJson)
-                        If Not issue Is Nothing Then
-                            issues.Add issue
-                            Debug.Print "Successfully added issue " & j
-                        End If
+                    If Err.Number = 0 And Not issue Is Nothing Then
+                        issues.Add issue
+                        Debug.Print "Successfully added issue " & j
                     Else
-                        Debug.Print "Error getting issue " & j & ": " & Err.Description
+                        Debug.Print "Error getting issue " & j & ": " & Err.Description & " (Err: " & Err.Number & ")"
                     End If
                 Next j
             Else
-                Debug.Print "Could not get array length or array is empty"
+                Debug.Print "Could not get array length or array is empty. Error: " & Err.Description
             End If
 
             Set scriptControl = Nothing
