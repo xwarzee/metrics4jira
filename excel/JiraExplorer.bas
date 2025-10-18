@@ -187,14 +187,19 @@ Private Sub DisplayIssues(ws As Worksheet, issues As Collection)
     row = 2
     For Each issue In issues
         If Not issue Is Nothing Then
-            Set fields = issue("fields")
+            ' Get fields object using CallByName for JScript compatibility
+            On Error Resume Next
+            Set fields = CallByName(issue, "fields", VbGet)
+            On Error GoTo 0
 
-            ws.Cells(row, 1).Value = GetValue(issue, "key")
-            ws.Cells(row, 2).Value = GetValue(fields, "summary")
-            ws.Cells(row, 3).Value = GetNestedValue(fields, "status", "name")
-            ws.Cells(row, 4).Value = GetNestedValue(fields, "priority", "name")
-            ws.Cells(row, 5).Value = GetNestedValue(fields, "assignee", "displayName")
-            ws.Cells(row, 6).Value = GetValue(fields, "created")
+            If Not fields Is Nothing Then
+                ws.Cells(row, 1).Value = GetValue(issue, "key")
+                ws.Cells(row, 2).Value = GetValue(fields, "summary")
+                ws.Cells(row, 3).Value = GetNestedValue(fields, "status", "name")
+                ws.Cells(row, 4).Value = GetNestedValue(fields, "priority", "name")
+                ws.Cells(row, 5).Value = GetNestedValue(fields, "assignee", "displayName")
+                ws.Cells(row, 6).Value = GetValue(fields, "created")
+            End If
 
             ' Store full issue data in hidden column for detail view
             ws.Cells(row, 7).Value = row
@@ -352,27 +357,47 @@ End Function
 
 ' ==========================================
 ' Function: GetValue
-' Description: Safely get value from object
+' Description: Safely get value from object (JScript compatible)
 ' ==========================================
 Private Function GetValue(obj As Object, key As String) As String
     On Error Resume Next
-    GetValue = CStr(obj(key))
-    If Err.Number <> 0 Then GetValue = ""
+
+    ' Try direct property access first (for JScript objects)
+    Dim result As Variant
+    result = CallByName(obj, key, VbGet)
+
+    If Err.Number = 0 Then
+        GetValue = CStr(result)
+    Else
+        GetValue = ""
+    End If
+
     On Error GoTo 0
 End Function
 
 ' ==========================================
 ' Function: GetNestedValue
-' Description: Safely get nested value from object
+' Description: Safely get nested value from object (JScript compatible)
 ' ==========================================
 Private Function GetNestedValue(obj As Object, key1 As String, key2 As String) As String
     Dim nested As Object
     On Error Resume Next
-    Set nested = obj(key1)
-    If Not nested Is Nothing Then
-        GetNestedValue = CStr(nested(key2))
+
+    ' Try to get nested object using CallByName
+    Set nested = CallByName(obj, key1, VbGet)
+
+    If Err.Number = 0 And Not nested Is Nothing Then
+        Dim result As Variant
+        result = CallByName(nested, key2, VbGet)
+        If Err.Number = 0 Then
+            GetNestedValue = CStr(result)
+        Else
+            GetNestedValue = ""
+        End If
+    Else
+        GetNestedValue = ""
     End If
-    If Err.Number <> 0 Then GetNestedValue = ""
+
     On Error GoTo 0
 End Function
 
