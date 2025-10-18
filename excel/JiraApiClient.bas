@@ -173,6 +173,8 @@ Private Function SearchIssuesServer(ByVal jql As String, _
     http.Send requestBody
 
     ' Check response
+    Debug.Print "Response Status: " & http.Status
+
     If http.Status <> 200 Then
         Err.Raise vbObjectError + 1000, "SearchIssuesServer", _
                   "Jira API request failed: " & http.Status & vbCrLf & http.responseText
@@ -180,10 +182,15 @@ Private Function SearchIssuesServer(ByVal jql As String, _
 
     ' Parse JSON response
     response = http.responseText
+    Debug.Print "Response length: " & Len(response) & " characters"
+    Debug.Print "Response preview: " & Left(response, 500)
+
     Set jsonResponse = ParseJson(response)
 
     ' Extract issues
     Set SearchIssuesServer = ExtractIssues(jsonResponse)
+
+    Debug.Print "Issues found: " & SearchIssuesServer.Count
 
     Set http = Nothing
     Set jsonResponse = Nothing
