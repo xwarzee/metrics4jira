@@ -115,7 +115,7 @@ Private Function SearchIssuesCloud(ByVal jql As String, _
     Set jsonResponse = ParseJson(response)
 
     ' Extract issues
-    Set SearchIssuesCloud = ExtractIssues(jsonResponse)
+    Set SearchIssuesCloud = ExtractIssues(jsonResponse, response)
 
     Set http = Nothing
     Set jsonResponse = Nothing
@@ -187,8 +187,8 @@ Private Function SearchIssuesServer(ByVal jql As String, _
 
     Set jsonResponse = ParseJson(response)
 
-    ' Extract issues
-    Set SearchIssuesServer = ExtractIssues(jsonResponse)
+    ' Extract issues - pass the response string too for alternative parsing
+    Set SearchIssuesServer = ExtractIssues(jsonResponse, response)
 
     Debug.Print "Issues found: " & SearchIssuesServer.Count
 
@@ -261,11 +261,12 @@ End Function
 ' Parameters: jsonResponse - Parsed JSON object
 ' Returns: Collection of issue dictionaries
 ' ==========================================
-Private Function ExtractIssues(jsonResponse As Object) As Collection
+Private Function ExtractIssues(jsonResponse As Object, Optional jsonString As String = "") As Collection
     Dim issues As Collection
     Dim issuesArray As Object
     Dim issue As Object
     Dim i As Long
+    Dim scriptControl As Object
 
     Set issues = New Collection
 
@@ -288,55 +289,45 @@ Private Function ExtractIssues(jsonResponse As Object) As Collection
             Debug.Print "issuesArray is not Nothing"
             Debug.Print "issuesArray type: " & TypeName(issuesArray)
 
-            ' For JScript arrays, we need to iterate until we hit undefined
-            ' since .length property doesn't work correctly with COM
-            i = 0
-            Do
-                Err.Clear
-                Set issue = Nothing
+            ' Create a new ScriptControl to access array elements properly
+            Set scriptControl = CreateObject("ScriptControl")
+            scriptControl.Language = "JScript"
 
-                On Error Resume Next
-                Set issue = issuesArray(i)
+            ' Add the issues array to ScriptControl
+            scriptControl.AddCode "var issuesArray = " & jsonString & ";"
 
-                Debug.Print "Index " & i & ": Err.Number = " & Err.Number & ", TypeName = " & TypeName(issue)
+            ' Get the count using JScript
+            On Error Resume Next
+            i = scriptControl.Eval("issuesArray.issues.length")
+            Debug.Print "Array length from JScript: " & i
 
-                ' Check if we got an error or Nothing (end of array)
-                If Err.Number <> 0 Then
-                    Debug.Print "Error at index " & i & ": " & Err.Description
+            If Err.Number = 0 And i > 0 Then
+                ' Extract each issue using JScript eval
+                Dim j As Long
+                For j = 0 To i - 1
                     Err.Clear
-                    Exit Do
-                End If
+                    Set issue = Nothing
 
-                ' Check if issue is Nothing or undefined
-                Dim issueTypeName As String
-                issueTypeName = TypeName(issue)
+                    ' Get issue as JSON string then parse it
+                    Dim issueJson As String
+                    issueJson = scriptControl.Eval("JSON.stringify(issuesArray.issues[" & j & "])")
 
-                Debug.Print "Index " & i & ": TypeName = " & issueTypeName
+                    If Err.Number = 0 And Len(issueJson) > 0 Then
+                        ' Parse the individual issue
+                        Set issue = ParseJson(issueJson)
+                        If Not issue Is Nothing Then
+                            issues.Add issue
+                            Debug.Print "Successfully added issue " & j
+                        End If
+                    Else
+                        Debug.Print "Error getting issue " & j & ": " & Err.Description
+                    End If
+                Next j
+            Else
+                Debug.Print "Could not get array length or array is empty"
+            End If
 
-                If issue Is Nothing Then
-                    Debug.Print "issue Is Nothing at index " & i & ", stopping"
-                    Exit Do
-                End If
-
-                If issueTypeName = "Nothing" Or issueTypeName = "Empty" Then
-                    Debug.Print "Empty element at index " & i & ", stopping"
-                    Exit Do
-                End If
-
-                ' Successfully got an issue, add it to collection
-                On Error GoTo 0
-                issues.Add issue
-                Debug.Print "Successfully added issue " & i
-                i = i + 1
-
-                ' Safety limit to prevent infinite loop
-                If i > 10000 Then
-                    Debug.Print "Safety limit reached"
-                    Exit Do
-                End If
-            Loop
-
-            Debug.Print "Total issues extracted: " & i
+            Set scriptControl = Nothing
         Else
             Debug.Print "issuesArray is Nothing"
         End If
