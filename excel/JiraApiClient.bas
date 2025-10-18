@@ -265,19 +265,60 @@ Private Function ExtractIssues(jsonResponse As Object) As Collection
     Dim issues As Collection
     Dim issuesArray As Object
     Dim issue As Object
+    Dim i As Long
 
     Set issues = New Collection
 
+    On Error Resume Next
+
     If Not jsonResponse Is Nothing Then
-        If HasKey(jsonResponse, "issues") Then
+        Debug.Print "jsonResponse is not Nothing"
+
+        ' Try to access issues property
+        Set issuesArray = jsonResponse.issues
+
+        If Err.Number <> 0 Then
+            Debug.Print "Error accessing jsonResponse.issues: " & Err.Description
+            Err.Clear
+            ' Try with parentheses notation
             Set issuesArray = jsonResponse("issues")
-            If Not issuesArray Is Nothing Then
-                For Each issue In issuesArray
-                    issues.Add issue
-                Next issue
-            End If
         End If
+
+        If Not issuesArray Is Nothing Then
+            Debug.Print "issuesArray is not Nothing"
+            Debug.Print "issuesArray type: " & TypeName(issuesArray)
+
+            ' Try to get length property
+            On Error Resume Next
+            Dim issueCount As Long
+            issueCount = issuesArray.length
+            If Err.Number <> 0 Then
+                Err.Clear
+                issueCount = issuesArray.Length
+            End If
+            Debug.Print "issuesArray length: " & issueCount
+
+            ' Iterate using index instead of For Each
+            If issueCount > 0 Then
+                For i = 0 To issueCount - 1
+                    On Error Resume Next
+                    Set issue = issuesArray(i)
+                    If Err.Number = 0 And Not issue Is Nothing Then
+                        issues.Add issue
+                    Else
+                        Debug.Print "Error accessing issue " & i & ": " & Err.Description
+                        Err.Clear
+                    End If
+                Next i
+            End If
+        Else
+            Debug.Print "issuesArray is Nothing"
+        End If
+    Else
+        Debug.Print "jsonResponse is Nothing"
     End If
+
+    On Error GoTo 0
 
     Set ExtractIssues = issues
 End Function
