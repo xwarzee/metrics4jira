@@ -20,6 +20,11 @@ Public Type JiraConfiguration
     ApiToken As String
     MaxResults As Integer
     ApiVersionValue As ApiVersion
+    ProxyServer As String
+    ProxyPort As Integer
+    ProxyUsername As String
+    ProxyPassword As String
+    UseProxy As Boolean
 End Type
 
 ' Global configuration
@@ -35,6 +40,11 @@ Public Sub InitializeConfig()
     Config.ApiToken = ""
     Config.MaxResults = 50
     Config.ApiVersionValue = CLOUD_CURRENT
+    Config.ProxyServer = ""
+    Config.ProxyPort = 8080
+    Config.ProxyUsername = ""
+    Config.ProxyPassword = ""
+    Config.UseProxy = False
 End Sub
 
 ' ==========================================
@@ -55,7 +65,13 @@ Public Sub LoadConfigFromSheet()
     End If
 
     ' Load configuration values
-    Config.JiraUrl = ws.Range("B2").Value
+    Config.JiraUrl = Trim(ws.Range("B2").Value)
+
+    ' Remove trailing slash from URL if present
+    If Right(Config.JiraUrl, 1) = "/" Then
+        Config.JiraUrl = Left(Config.JiraUrl, Len(Config.JiraUrl) - 1)
+    End If
+
     Config.Username = ws.Range("B3").Value
     Config.ApiToken = ws.Range("B4").Value
     Config.MaxResults = ws.Range("B5").Value
@@ -72,6 +88,16 @@ Public Sub LoadConfigFromSheet()
     If Config.MaxResults < 1 Or Config.MaxResults > 1000 Then
         Config.MaxResults = 50
     End If
+
+    ' Load proxy configuration
+    Config.UseProxy = (ws.Range("B8").Value = "Yes" Or ws.Range("B8").Value = "Oui")
+    Config.ProxyServer = ws.Range("B9").Value
+    On Error Resume Next
+    Config.ProxyPort = CInt(ws.Range("B10").Value)
+    If Err.Number <> 0 Or Config.ProxyPort = 0 Then Config.ProxyPort = 8080
+    On Error GoTo 0
+    Config.ProxyUsername = ws.Range("B11").Value
+    Config.ProxyPassword = ws.Range("B12").Value
 End Sub
 
 ' ==========================================
@@ -103,6 +129,13 @@ Public Sub SaveConfigToSheet()
     Else
         ws.Range("B6").Value = "Jira Cloud (Current)"
     End If
+
+    ' Save proxy configuration
+    ws.Range("B8").Value = IIf(Config.UseProxy, "Yes", "No")
+    ws.Range("B9").Value = Config.ProxyServer
+    ws.Range("B10").Value = Config.ProxyPort
+    ws.Range("B11").Value = Config.ProxyUsername
+    ws.Range("B12").Value = Config.ProxyPassword
 End Sub
 
 ' ==========================================
@@ -115,15 +148,28 @@ Private Sub CreateConfigSheetLayout(ws As Worksheet)
     ws.Range("A1").Font.Bold = True
     ws.Range("A1").Font.Size = 14
 
-    ' Configuration fields
+    ' Configuration fields - Jira
     ws.Range("A2").Value = "Jira URL:"
     ws.Range("A3").Value = "Username (Email):"
     ws.Range("A4").Value = "API Token:"
     ws.Range("A5").Value = "Max Results:"
     ws.Range("A6").Value = "API Version:"
 
+    ' Proxy section header
+    ws.Range("A7").Value = ""
+    ws.Range("A7").Font.Bold = True
+    ws.Range("A7").Interior.Color = RGB(217, 217, 217)
+
+    ' Configuration fields - Proxy
+    ws.Range("A8").Value = "Use Proxy:"
+    ws.Range("A9").Value = "Proxy Server:"
+    ws.Range("A10").Value = "Proxy Port:"
+    ws.Range("A11").Value = "Proxy Username:"
+    ws.Range("A12").Value = "Proxy Password:"
+
     ' Format
     ws.Range("A2:A6").Font.Bold = True
+    ws.Range("A8:A12").Font.Bold = True
     ws.Columns("A:A").ColumnWidth = 20
     ws.Columns("B:B").ColumnWidth = 40
 
@@ -135,15 +181,34 @@ Private Sub CreateConfigSheetLayout(ws As Worksheet)
              Formula1:="Jira Server 9.12.24,Jira Cloud (Current)"
     End With
 
+    ' Add validation for Use Proxy
+    With ws.Range("B8").Validation
+        .Delete
+        .Add Type:=xlValidateList, _
+             AlertStyle:=xlValidAlertStop, _
+             Formula1:="Yes,No"
+    End With
+
+    ' Set default values
+    ws.Range("B8").Value = "No"
+    ws.Range("B10").Value = "8080"
+
     ' Add instructions
-    ws.Range("A8").Value = "Instructions:"
-    ws.Range("A8").Font.Bold = True
-    ws.Range("A9").Value = "1. Enter your Jira URL (e.g., https://your-domain.atlassian.net)"
-    ws.Range("A10").Value = "2. Select API Version based on your Jira instance"
-    ws.Range("A11").Value = "3. Enter your Jira email address"
-    ws.Range("A12").Value = "4. Generate and enter API token from:"
-    ws.Range("A13").Value = "   https://id.atlassian.com/manage-profile/security/api-tokens"
-    ws.Range("A14").Value = "5. Set maximum number of results (1-1000)"
+    ws.Range("A14").Value = "Instructions:"
+    ws.Range("A14").Font.Bold = True
+    ws.Range("A15").Value = "1. Enter your Jira URL WITHOUT trailing slash:"
+    ws.Range("A16").Value = "   - Jira Cloud: https://your-domain.atlassian.net"
+    ws.Range("A17").Value = "   - Jira Server: https://your-server.com/jira"
+    ws.Range("A18").Value = "2. Select API Version based on your Jira instance"
+    ws.Range("A19").Value = "3. Enter your Jira email address"
+    ws.Range("A20").Value = "4. Generate and enter API token from:"
+    ws.Range("A21").Value = "   https://id.atlassian.com/manage-profile/security/api-tokens"
+    ws.Range("A22").Value = "5. Set maximum number of results (1-1000)"
+    ws.Range("A23").Value = "6. (Optional) Configure proxy if required:"
+    ws.Range("A24").Value = "   - Set Use Proxy to Yes"
+    ws.Range("A25").Value = "   - Enter proxy server (e.g., proxy.company.com)"
+    ws.Range("A26").Value = "   - Enter proxy port (default: 8080)"
+    ws.Range("A27").Value = "   - Enter proxy credentials if required"
 End Sub
 
 ' ==========================================

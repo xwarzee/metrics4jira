@@ -19,8 +19,13 @@ Public Function TestConnection() As Boolean
 
     On Error GoTo ErrorHandler
 
-    Set http = CreateObject("MSXML2.XMLHTTP.6.0")
+    Set http = CreateObject("MSXML2.ServerXMLHTTP.6.0")
     url = JiraConfig.Config.JiraUrl & JiraConfig.GetApiPath() & "/myself"
+
+    ' Configure proxy if enabled
+    If JiraConfig.Config.UseProxy Then
+        Call ConfigureProxy(http)
+    End If
 
     http.Open "GET", url, False
     http.setRequestHeader "Authorization", JiraConfig.GetAuthHeader()
@@ -77,7 +82,12 @@ Private Function SearchIssuesCloud(ByVal jql As String, _
 
     On Error GoTo ErrorHandler
 
-    Set http = CreateObject("MSXML2.XMLHTTP.6.0")
+    Set http = CreateObject("MSXML2.ServerXMLHTTP.6.0")
+
+    ' Configure proxy if enabled
+    If JiraConfig.Config.UseProxy Then
+        Call ConfigureProxy(http)
+    End If
 
     ' Build URL with query parameters
     url = JiraConfig.Config.JiraUrl & JiraConfig.GetSearchEndpoint()
@@ -133,17 +143,23 @@ Private Function SearchIssuesServer(ByVal jql As String, _
 
     On Error GoTo ErrorHandler
 
-    Set http = CreateObject("MSXML2.XMLHTTP.6.0")
+    Set http = CreateObject("MSXML2.ServerXMLHTTP.6.0")
+
+    ' Configure proxy if enabled
+    If JiraConfig.Config.UseProxy Then
+        Call ConfigureProxy(http)
+    End If
 
     url = JiraConfig.Config.JiraUrl & JiraConfig.GetSearchEndpoint()
+
+    Debug.Print "Server API URL: " & url
 
     ' Build JSON request body
     requestBody = "{"
     requestBody = requestBody & """jql"":""" & EscapeJson(jql) & ""","
     requestBody = requestBody & """startAt"":" & CStr(startAt) & ","
     requestBody = requestBody & """maxResults"":" & CStr(maxResults) & ","
-    requestBody = requestBody & """fields"":[""*all""],"
-    requestBody = requestBody & """expand"":""names,schema"""
+    requestBody = requestBody & """fields"":[""*all""]"
     requestBody = requestBody & "}"
 
     Debug.Print "Server API payload: " & requestBody
@@ -153,6 +169,7 @@ Private Function SearchIssuesServer(ByVal jql As String, _
     http.setRequestHeader "Authorization", JiraConfig.GetAuthHeader()
     http.setRequestHeader "Accept", "application/json"
     http.setRequestHeader "Content-Type", "application/json"
+    http.setRequestHeader "X-Atlassian-Token", "no-check"
     http.Send requestBody
 
     ' Check response
@@ -192,7 +209,12 @@ Public Function GetFieldMetadata() As Object
     On Error GoTo ErrorHandler
 
     Set fieldDict = CreateObject("Scripting.Dictionary")
-    Set http = CreateObject("MSXML2.XMLHTTP.6.0")
+    Set http = CreateObject("MSXML2.ServerXMLHTTP.6.0")
+
+    ' Configure proxy if enabled
+    If JiraConfig.Config.UseProxy Then
+        Call ConfigureProxy(http)
+    End If
 
     url = JiraConfig.Config.JiraUrl & JiraConfig.GetApiPath() & "/field"
 
@@ -370,3 +392,26 @@ Private Function EscapeJson(ByVal text As String) As String
     result = Replace(result, vbTab, "\t")
     EscapeJson = result
 End Function
+
+' ==========================================
+' Function: ConfigureProxy
+' Description: Configure proxy settings for HTTP object
+' Parameters: http - XMLHTTP object
+' ==========================================
+Private Sub ConfigureProxy(http As Object)
+    Dim proxyUrl As String
+
+    ' Build proxy URL
+    proxyUrl = JiraConfig.Config.ProxyServer & ":" & CStr(JiraConfig.Config.ProxyPort)
+
+    Debug.Print "Configuring proxy: " & proxyUrl
+
+    ' Set proxy server
+    http.setProxy 2, proxyUrl  ' 2 = SXH_PROXY_SET_PROXY
+
+    ' Set proxy credentials if provided
+    If Len(JiraConfig.Config.ProxyUsername) > 0 Then
+        http.setProxyCredentials JiraConfig.Config.ProxyUsername, JiraConfig.Config.ProxyPassword
+        Debug.Print "Proxy credentials configured for user: " & JiraConfig.Config.ProxyUsername
+    End If
+End Sub

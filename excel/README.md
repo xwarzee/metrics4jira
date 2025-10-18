@@ -15,6 +15,7 @@ Cette version Excel permet d'interroger Jira et d'afficher les résultats direct
 - ✅ **Configuration intégrée** : Stockez votre configuration dans le classeur
 - ✅ **Test de connexion** : Vérifiez votre configuration avant de lancer des recherches
 - ✅ **Métadonnées des champs** : Noms de champs lisibles automatiquement chargés
+- ✅ **Support Proxy** : Configuration proxy HTTP/HTTPS avec authentification
 - ✅ **Aucune installation requise** : Fonctionne avec Excel 2016+ sur Windows et Mac
 
 ## Prérequis
@@ -63,11 +64,37 @@ excel/
    - **Max Results** : 50 (ou autre valeur entre 1-1000)
    - **API Version** : Choisissez votre version Jira
 
-### 2. Test de connexion
+### 2. Configuration du Proxy (Optionnel)
 
-Cliquez sur **"Test Connection"** pour vérifier que la connexion fonctionne.
+Si vous êtes derrière un proxy d'entreprise :
+1. **Use Proxy** : Sélectionnez "Yes"
+2. **Proxy Server** : `proxy.company.com` (adresse de votre proxy)
+3. **Proxy Port** : `8080` (ou le port utilisé par votre proxy)
+4. **Proxy Username** : Votre identifiant proxy (si authentification requise)
+5. **Proxy Password** : Votre mot de passe proxy (si authentification requise)
 
-### 3. Recherche d'issues
+**Exemples de configuration proxy** :
+```
+Proxy sans authentification :
+- Use Proxy: Yes
+- Proxy Server: proxy.company.com
+- Proxy Port: 8080
+- Proxy Username: (vide)
+- Proxy Password: (vide)
+
+Proxy avec authentification :
+- Use Proxy: Yes
+- Proxy Server: proxy.company.com
+- Proxy Port: 3128
+- Proxy Username: john.doe
+- Proxy Password: ••••••••
+```
+
+### 3. Test de connexion
+
+Cliquez sur **"Test Connection"** pour vérifier que la connexion fonctionne (avec ou sans proxy).
+
+### 4. Recherche d'issues
 
 1. Cliquez sur **"Search Jira Issues"**
 2. Entrez votre requête JQL :
@@ -76,7 +103,7 @@ Cliquez sur **"Test Connection"** pour vérifier que la connexion fonctionne.
    ```
 3. Les résultats s'affichent dans la feuille **Issues**
 
-### 4. Explorer les détails
+### 5. Explorer les détails
 
 Pour voir tous les champs d'une issue :
 1. Notez le numéro de ligne de l'issue dans la feuille **Issues**
@@ -143,7 +170,7 @@ Interface utilisateur Excel :
 | Méthode HTTP | POST | GET |
 | Body/Params | JSON body | Query parameters |
 | Fields | `["*all"]` | `*navigable` |
-| Expand | `"names,schema"` | Non utilisé |
+| Headers XSRF | `X-Atlassian-Token: no-check` | Non requis |
 
 L'application gère automatiquement ces différences en fonction de la version API sélectionnée.
 
