@@ -307,23 +307,18 @@ Private Function ExtractIssues(jsonResponse As Object) As Collection
                     Exit Do
                 End If
 
-                ' Check if issue is Nothing using IsEmpty or IsNull for JScript objects
-                Dim isEmpty As Boolean
-                isEmpty = False
+                ' Check if issue is Nothing or undefined
+                Dim issueTypeName As String
+                issueTypeName = TypeName(issue)
+
+                Debug.Print "Index " & i & ": TypeName = " & issueTypeName
 
                 If issue Is Nothing Then
-                    isEmpty = True
-                ElseIf TypeName(issue) = "Nothing" Then
-                    isEmpty = True
-                ElseIf TypeName(issue) = "Empty" Then
-                    isEmpty = True
-                ElseIf IsEmpty(issue) Then
-                    isEmpty = True
+                    Debug.Print "issue Is Nothing at index " & i & ", stopping"
+                    Exit Do
                 End If
 
-                Debug.Print "Index " & i & ": isEmpty = " & isEmpty
-
-                If isEmpty Then
+                If issueTypeName = "Nothing" Or issueTypeName = "Empty" Then
                     Debug.Print "Empty element at index " & i & ", stopping"
                     Exit Do
                 End If
