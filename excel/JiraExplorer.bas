@@ -702,7 +702,7 @@ Private Function GetSprints(fields As Object) As String
     ' Add the fields object
     scriptControl.AddObject "fieldsObj", fields, True
 
-    ' Create JavaScript function to extract and join sprints
+    ' Create JavaScript function to extract sprint names
     ' Sprint can be in various custom fields (customfield_10020, customfield_10010, etc.)
     jsCode = "function getSprints() {"
     jsCode = jsCode & "  try {"
@@ -712,11 +712,7 @@ Private Function GetSprints(fields As Object) As String
     jsCode = jsCode & "      if (sprints && sprints.length > 0) {"
     jsCode = jsCode & "        var result = [];"
     jsCode = jsCode & "        for (var i = 0; i < sprints.length; i++) {"
-    jsCode = jsCode & "          if (typeof sprints[i] === 'string') {"
-    jsCode = jsCode & "            var match = sprints[i].match(/name=([^,\\]]+)/);"
-    jsCode = jsCode & "            if (match) result.push(match[1]);"
-    jsCode = jsCode & "            else result.push(sprints[i]);"
-    jsCode = jsCode & "          } else if (sprints[i] && sprints[i].name) {"
+    jsCode = jsCode & "          if (sprints[i] && sprints[i].name) {"
     jsCode = jsCode & "            result.push(sprints[i].name);"
     jsCode = jsCode & "          }"
     jsCode = jsCode & "        }"
