@@ -687,44 +687,47 @@ End Function
 ' Description: Get Epic Link from fields (tries multiple custom field IDs)
 ' ==========================================
 Private Function GetLabels(fields As Object) As String
-    Dim labelsArray As Variant
-    Dim labels As String
-    Dim i As Long
-    Dim labelItem As Variant
+    Dim scriptControl As Object
+    Dim jsCode As String
+    Dim result As String
 
     On Error Resume Next
 
-    ' Try to get labels array
-    labelsArray = CallByName(fields, "labels", VbGet)
+    ' Create ScriptControl to handle JScript array properly
+    Set scriptControl = CreateObject("ScriptControl")
+    scriptControl.Language = "JScript"
 
-    If Err.Number = 0 And Not IsEmpty(labelsArray) Then
-        ' Check if it's an array or collection
-        If IsArray(labelsArray) Then
-            ' It's an array - join the elements
-            For i = LBound(labelsArray) To UBound(labelsArray)
-                If Len(labels) > 0 Then labels = labels & ", "
-                labels = labels & CStr(labelsArray(i))
-            Next i
-            GetLabels = labels
-        ElseIf IsObject(labelsArray) Then
-            ' It's a collection/object - iterate through it
-            For Each labelItem In labelsArray
-                If Len(labels) > 0 Then labels = labels & ", "
-                If IsObject(labelItem) Then
-                    ' If it's an object, try to get a string representation
-                    labels = labels & CStr(labelItem)
-                Else
-                    labels = labels & CStr(labelItem)
-                End If
-            Next labelItem
-            GetLabels = labels
-        End If
+    ' Add the fields object
+    scriptControl.AddObject "fieldsObj", fields, True
+
+    ' Create JavaScript function to extract and join labels
+    jsCode = "function getLabels() {"
+    jsCode = jsCode & "  try {"
+    jsCode = jsCode & "    var labels = fieldsObj.labels;"
+    jsCode = jsCode & "    if (!labels || labels.length === 0) return '';"
+    jsCode = jsCode & "    var result = [];"
+    jsCode = jsCode & "    for (var i = 0; i < labels.length; i++) {"
+    jsCode = jsCode & "      if (typeof labels[i] === 'string') {"
+    jsCode = jsCode & "        result.push(labels[i]);"
+    jsCode = jsCode & "      }"
+    jsCode = jsCode & "    }"
+    jsCode = jsCode & "    return result.join(', ');"
+    jsCode = jsCode & "  } catch(e) { return ''; }"
+    jsCode = jsCode & "}"
+
+    scriptControl.AddCode jsCode
+
+    ' Execute the function
+    result = scriptControl.Run("getLabels")
+
+    If Err.Number = 0 Then
+        GetLabels = result
+    Else
+        GetLabels = ""
     End If
 
+    Set scriptControl = Nothing
     On Error GoTo 0
-
-    ' Return empty string if not found or empty
-    If Len(labels) = 0 Then GetLabels = ""
 End Function
 
 Private Function GetEpicLink(fields As Object) As String
