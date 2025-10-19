@@ -201,22 +201,23 @@ Private Sub DisplayIssues(ws As Worksheet, issues As Collection)
                 ws.Cells(row, 6).Value = GetEpicLink(fields)
                 ws.Cells(row, 7).Value = GetLabels(fields)
                 ws.Cells(row, 8).Value = GetFixVersions(fields)
-                ws.Cells(row, 9).Value = GetValue(fields, "created")
+                ws.Cells(row, 9).Value = GetSprints(fields)
+                ws.Cells(row, 10).Value = GetValue(fields, "created")
             End If
 
             ' Store full issue data in hidden column for detail view
-            ws.Cells(row, 10).Value = row
-            ws.Cells(row, 10).NumberFormat = "0"
+            ws.Cells(row, 11).Value = row
+            ws.Cells(row, 11).NumberFormat = "0"
 
             row = row + 1
         End If
     Next issue
 
     ' Auto-fit columns
-    ws.Columns("A:I").AutoFit
+    ws.Columns("A:J").AutoFit
 
     ' Update result count
-    ws.Range("J1").Value = "Total: " & issues.Count
+    ws.Range("K1").Value = "Total: " & issues.Count
 End Sub
 
 ' ==========================================
@@ -687,6 +688,60 @@ End Function
 ' Function: GetEpicLink
 ' Description: Get Epic Link from fields (tries multiple custom field IDs)
 ' ==========================================
+Private Function GetSprints(fields As Object) As String
+    Dim scriptControl As Object
+    Dim jsCode As String
+    Dim result As String
+
+    On Error Resume Next
+
+    ' Create ScriptControl to handle JScript array properly
+    Set scriptControl = CreateObject("ScriptControl")
+    scriptControl.Language = "JScript"
+
+    ' Add the fields object
+    scriptControl.AddObject "fieldsObj", fields, True
+
+    ' Create JavaScript function to extract and join sprints
+    ' Sprint can be in various custom fields (customfield_10020, customfield_10010, etc.)
+    jsCode = "function getSprints() {"
+    jsCode = jsCode & "  try {"
+    jsCode = jsCode & "    var sprintFieldIds = ['customfield_10020', 'customfield_10010', 'customfield_10104', 'customfield_10001'];"
+    jsCode = jsCode & "    for (var f = 0; f < sprintFieldIds.length; f++) {"
+    jsCode = jsCode & "      var sprints = fieldsObj[sprintFieldIds[f]];"
+    jsCode = jsCode & "      if (sprints && sprints.length > 0) {"
+    jsCode = jsCode & "        var result = [];"
+    jsCode = jsCode & "        for (var i = 0; i < sprints.length; i++) {"
+    jsCode = jsCode & "          if (typeof sprints[i] === 'string') {"
+    jsCode = jsCode & "            var match = sprints[i].match(/name=([^,\\]]+)/);"
+    jsCode = jsCode & "            if (match) result.push(match[1]);"
+    jsCode = jsCode & "            else result.push(sprints[i]);"
+    jsCode = jsCode & "          } else if (sprints[i] && sprints[i].name) {"
+    jsCode = jsCode & "            result.push(sprints[i].name);"
+    jsCode = jsCode & "          }"
+    jsCode = jsCode & "        }"
+    jsCode = jsCode & "        if (result.length > 0) return result.join(', ');"
+    jsCode = jsCode & "      }"
+    jsCode = jsCode & "    }"
+    jsCode = jsCode & "    return '';"
+    jsCode = jsCode & "  } catch(e) { return ''; }"
+    jsCode = jsCode & "}"
+
+    scriptControl.AddCode jsCode
+
+    ' Execute the function
+    result = scriptControl.Run("getSprints")
+
+    If Err.Number = 0 Then
+        GetSprints = result
+    Else
+        GetSprints = ""
+    End If
+
+    Set scriptControl = Nothing
+    On Error GoTo 0
+End Function
+
 Private Function GetFixVersions(fields As Object) As String
     Dim scriptControl As Object
     Dim jsCode As String
@@ -884,18 +939,19 @@ Private Sub CreateIssuesSheetLayout()
     ws.Range("F1").Value = "Epic Link"
     ws.Range("G1").Value = "Labels"
     ws.Range("H1").Value = "Fix Versions"
-    ws.Range("I1").Value = "Created"
-    ws.Range("J1").Value = "Total: 0"
+    ws.Range("I1").Value = "Sprint"
+    ws.Range("J1").Value = "Created"
+    ws.Range("K1").Value = "Total: 0"
 
     ' Format headers
-    With ws.Range("A1:I1")
+    With ws.Range("A1:J1")
         .Font.Bold = True
         .Interior.Color = RGB(68, 114, 196)
         .Font.Color = RGB(255, 255, 255)
     End With
 
     ' Hide helper column (row number for detail view)
-    ws.Columns("J:J").Hidden = True
+    ws.Columns("K:K").Hidden = True
 
     ' Freeze panes
     On Error Resume Next
@@ -907,7 +963,7 @@ Private Sub CreateIssuesSheetLayout()
     ' Auto-filter (disable first if already enabled, for macOS compatibility)
     On Error Resume Next
     If ws.AutoFilterMode Then ws.AutoFilterMode = False
-    ws.Range("A1:I1").AutoFilter
+    ws.Range("A1:J1").AutoFilter
     On Error GoTo 0
 End Sub
 
