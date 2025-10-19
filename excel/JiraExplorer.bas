@@ -259,8 +259,9 @@ Public Sub ShowIssueDetails(issueRow As Long)
         On Error GoTo ErrorHandler
 
         If Not fields Is Nothing Then
-            ' Display field explorer
-            Call DisplayFieldExplorer(wsExplorer, issueKey, fields)
+            Debug.Print "fields object type: " & TypeName(fields)
+            ' Display field explorer - pass the full issue object instead
+            Call DisplayFieldExplorerSimple(wsExplorer, issueKey, issue)
         Else
             MsgBox "Unable to access issue fields", vbExclamation
         End If
@@ -378,6 +379,98 @@ Private Sub DisplayFieldExplorer(ws As Worksheet, issueKey As String, fields As 
         ws.Cells(row, 2).Value = fieldValue
 
         row = row + 1
+    Next i
+
+    ' Auto-fit columns
+    ws.Columns("A:B").AutoFit
+
+    Set scriptControl = Nothing
+End Sub
+
+' ==========================================
+' Subroutine: DisplayFieldExplorerSimple
+' Description: Display issue fields in FieldExplorer (simplified version)
+' Parameters:
+'   ws - Worksheet to display in
+'   issueKey - Issue key
+'   issue - Full issue object
+' ==========================================
+Private Sub DisplayFieldExplorerSimple(ws As Worksheet, issueKey As String, issue As Object)
+    Dim row As Long
+    Dim scriptControl As Object
+    Dim commonFields As Variant
+    Dim i As Long
+    Dim fieldKey As String
+    Dim fieldName As String
+    Dim fieldValue As String
+
+    ' Clear existing data
+    ws.Rows("3:" & ws.Rows.Count).ClearContents
+
+    ' Set issue key
+    ws.Range("B1").Value = issueKey
+
+    ' Create ScriptControl for accessing values
+    Set scriptControl = CreateObject("ScriptControl")
+    scriptControl.Language = "JScript"
+    scriptControl.AddObject "issueObj", issue, True
+
+    ' Define common Jira fields to display
+    commonFields = Array("summary", "description", "status", "priority", "assignee", _
+                         "reporter", "created", "updated", "resolutiondate", "duedate", _
+                         "issuetype", "project", "components", "labels", "fixVersions", _
+                         "versions", "timeoriginalestimate", "timeestimate", "timespent", _
+                         "aggregatetimeoriginalestimate", "aggregatetimeestimate", "aggregatetimespent", _
+                         "resolution", "customfield_10014", "customfield_10008", "customfield_10011")
+
+    ' Add function to get field value
+    scriptControl.AddCode "function getFieldVal(fieldKey) {" & _
+        "  try {" & _
+        "    var fields = issueObj.fields;" & _
+        "    if (!fields) return '[No fields]';" & _
+        "    var val = fields[fieldKey];" & _
+        "    if (val === null || val === undefined) return '';" & _
+        "    if (typeof val === 'string') return val;" & _
+        "    if (typeof val === 'number') return String(val);" & _
+        "    if (typeof val === 'boolean') return val ? 'true' : 'false';" & _
+        "    if (typeof val === 'object') {" & _
+        "      if (val.name) return val.name;" & _
+        "      if (val.value) return val.value;" & _
+        "      if (val.displayName) return val.displayName;" & _
+        "      if (val.key) return val.key;" & _
+        "      return '[object]';" & _
+        "    }" & _
+        "    return String(val);" & _
+        "  } catch(e) { return '[Error]'; }" & _
+        "}"
+
+    ' Display fields
+    row = 3
+    For i = LBound(commonFields) To UBound(commonFields)
+        fieldKey = commonFields(i)
+
+        ' Get field name from metadata or use key
+        If Not fieldMetadata Is Nothing And fieldMetadata.Exists(fieldKey) Then
+            fieldName = fieldMetadata(fieldKey)
+        Else
+            fieldName = fieldKey
+        End If
+
+        ' Get field value
+        On Error Resume Next
+        fieldValue = scriptControl.Run("getFieldVal", fieldKey)
+        If Err.Number <> 0 Or Len(fieldValue) = 0 Then
+            fieldValue = ""
+            Err.Clear
+        End If
+        On Error GoTo 0
+
+        ' Only display if field has a value
+        If Len(fieldValue) > 0 Then
+            ws.Cells(row, 1).Value = fieldName
+            ws.Cells(row, 2).Value = fieldValue
+            row = row + 1
+        End If
     Next i
 
     ' Auto-fit columns
