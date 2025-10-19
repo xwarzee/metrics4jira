@@ -439,6 +439,17 @@ Private Sub DisplayFieldExplorerSimple(ws As Worksheet, issueKey As String, issu
         "    if (typeof val === 'number') return String(val);" & _
         "    if (typeof val === 'boolean') return val ? 'true' : 'false';" & _
         "    if (typeof val === 'object') {" & _
+        "      if (Array.isArray(val)) {" & _
+        "        var items = [];" & _
+        "        for (var i = 0; i < val.length; i++) {" & _
+        "          var item = val[i];" & _
+        "          if (typeof item === 'string') items.push(item);" & _
+        "          else if (item.name) items.push(item.name);" & _
+        "          else if (item.value) items.push(item.value);" & _
+        "          else if (item.key) items.push(item.key);" & _
+        "        }" & _
+        "        return items.join(', ');" & _
+        "      }" & _
         "      if (val.name) return val.name;" & _
         "      if (val.value) return val.value;" & _
         "      if (val.displayName) return val.displayName;" & _
@@ -446,7 +457,24 @@ Private Sub DisplayFieldExplorerSimple(ws As Worksheet, issueKey As String, issu
         "      return '[object]';" & _
         "    }" & _
         "    return String(val);" & _
-        "  } catch(e) { return '[Error]'; }" & _
+        "  } catch(e) { return '[Error: ' + e.message + ']'; }" & _
+        "}"
+
+    ' Add function to get Epic Link (tries multiple custom field IDs)
+    scriptControl.AddCode "function getEpicLink() {" & _
+        "  try {" & _
+        "    var fields = issueObj.fields;" & _
+        "    if (!fields) return '';" & _
+        "    var epicFieldIds = ['customfield_10014', 'customfield_10008', 'customfield_10100', 'customfield_10011'];" & _
+        "    for (var i = 0; i < epicFieldIds.length; i++) {" & _
+        "      var val = fields[epicFieldIds[i]];" & _
+        "      if (val !== null && val !== undefined && val !== '') {" & _
+        "        if (typeof val === 'string') return val;" & _
+        "        if (typeof val === 'object' && val.key) return val.key;" & _
+        "      }" & _
+        "    }" & _
+        "    return '';" & _
+        "  } catch(e) { return ''; }" & _
         "}"
 
     ' Display fields
@@ -477,6 +505,17 @@ Private Sub DisplayFieldExplorerSimple(ws As Worksheet, issueKey As String, issu
             row = row + 1
         End If
     Next i
+
+    ' Add Epic Link field (try multiple custom field IDs)
+    On Error Resume Next
+    fieldValue = scriptControl.Run("getEpicLink")
+    If Err.Number = 0 And Len(fieldValue) > 0 Then
+        ws.Cells(row, 1).Value = "Epic Link"
+        ws.Cells(row, 2).Value = fieldValue
+        row = row + 1
+    End If
+    Err.Clear
+    On Error GoTo 0
 
     ' Auto-fit columns
     ws.Columns("A:B").AutoFit
