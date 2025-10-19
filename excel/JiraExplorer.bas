@@ -200,22 +200,23 @@ Private Sub DisplayIssues(ws As Worksheet, issues As Collection)
                 ws.Cells(row, 5).Value = GetNestedValue(fields, "assignee", "displayName")
                 ws.Cells(row, 6).Value = GetEpicLink(fields)
                 ws.Cells(row, 7).Value = GetLabels(fields)
-                ws.Cells(row, 8).Value = GetValue(fields, "created")
+                ws.Cells(row, 8).Value = GetFixVersions(fields)
+                ws.Cells(row, 9).Value = GetValue(fields, "created")
             End If
 
             ' Store full issue data in hidden column for detail view
-            ws.Cells(row, 9).Value = row
-            ws.Cells(row, 9).NumberFormat = "0"
+            ws.Cells(row, 10).Value = row
+            ws.Cells(row, 10).NumberFormat = "0"
 
             row = row + 1
         End If
     Next issue
 
     ' Auto-fit columns
-    ws.Columns("A:H").AutoFit
+    ws.Columns("A:I").AutoFit
 
     ' Update result count
-    ws.Range("I1").Value = "Total: " & issues.Count
+    ws.Range("J1").Value = "Total: " & issues.Count
 End Sub
 
 ' ==========================================
@@ -686,6 +687,52 @@ End Function
 ' Function: GetEpicLink
 ' Description: Get Epic Link from fields (tries multiple custom field IDs)
 ' ==========================================
+Private Function GetFixVersions(fields As Object) As String
+    Dim scriptControl As Object
+    Dim jsCode As String
+    Dim result As String
+
+    On Error Resume Next
+
+    ' Create ScriptControl to handle JScript array properly
+    Set scriptControl = CreateObject("ScriptControl")
+    scriptControl.Language = "JScript"
+
+    ' Add the fields object
+    scriptControl.AddObject "fieldsObj", fields, True
+
+    ' Create JavaScript function to extract and join fix versions
+    jsCode = "function getFixVersions() {"
+    jsCode = jsCode & "  try {"
+    jsCode = jsCode & "    var versions = fieldsObj.fixVersions;"
+    jsCode = jsCode & "    if (!versions || versions.length === 0) return '';"
+    jsCode = jsCode & "    var result = [];"
+    jsCode = jsCode & "    for (var i = 0; i < versions.length; i++) {"
+    jsCode = jsCode & "      if (typeof versions[i] === 'string') {"
+    jsCode = jsCode & "        result.push(versions[i]);"
+    jsCode = jsCode & "      } else if (versions[i] && versions[i].name) {"
+    jsCode = jsCode & "        result.push(versions[i].name);"
+    jsCode = jsCode & "      }"
+    jsCode = jsCode & "    }"
+    jsCode = jsCode & "    return result.join(', ');"
+    jsCode = jsCode & "  } catch(e) { return ''; }"
+    jsCode = jsCode & "}"
+
+    scriptControl.AddCode jsCode
+
+    ' Execute the function
+    result = scriptControl.Run("getFixVersions")
+
+    If Err.Number = 0 Then
+        GetFixVersions = result
+    Else
+        GetFixVersions = ""
+    End If
+
+    Set scriptControl = Nothing
+    On Error GoTo 0
+End Function
+
 Private Function GetLabels(fields As Object) As String
     Dim scriptControl As Object
     Dim jsCode As String
@@ -836,18 +883,19 @@ Private Sub CreateIssuesSheetLayout()
     ws.Range("E1").Value = "Assignee"
     ws.Range("F1").Value = "Epic Link"
     ws.Range("G1").Value = "Labels"
-    ws.Range("H1").Value = "Created"
-    ws.Range("I1").Value = "Total: 0"
+    ws.Range("H1").Value = "Fix Versions"
+    ws.Range("I1").Value = "Created"
+    ws.Range("J1").Value = "Total: 0"
 
     ' Format headers
-    With ws.Range("A1:H1")
+    With ws.Range("A1:I1")
         .Font.Bold = True
         .Interior.Color = RGB(68, 114, 196)
         .Font.Color = RGB(255, 255, 255)
     End With
 
     ' Hide helper column (row number for detail view)
-    ws.Columns("I:I").Hidden = True
+    ws.Columns("J:J").Hidden = True
 
     ' Freeze panes
     On Error Resume Next
@@ -859,7 +907,7 @@ Private Sub CreateIssuesSheetLayout()
     ' Auto-filter (disable first if already enabled, for macOS compatibility)
     On Error Resume Next
     If ws.AutoFilterMode Then ws.AutoFilterMode = False
-    ws.Range("A1:H1").AutoFilter
+    ws.Range("A1:I1").AutoFilter
     On Error GoTo 0
 End Sub
 
