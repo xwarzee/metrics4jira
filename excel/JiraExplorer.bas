@@ -401,23 +401,49 @@ Private Function GetObjectKeys(obj As Object) As Variant
 
     On Error GoTo ErrorHandler
 
+    Debug.Print "GetObjectKeys: Starting..."
+    Debug.Print "GetObjectKeys: Object type = " & TypeName(obj)
+
     Set scriptControl = CreateObject("ScriptControl")
     scriptControl.Language = "JScript"
 
     ' Add the object to the script context
+    On Error Resume Next
     scriptControl.AddObject "fieldsObj", obj, True
+    If Err.Number <> 0 Then
+        Debug.Print "GetObjectKeys: Error adding object - " & Err.Description
+        Err.Clear
+    End If
+    On Error GoTo ErrorHandler
 
     ' Create function to get keys
-    scriptControl.AddCode "function getKeys() { var arr = new Array(); for (var k in fieldsObj) { arr.push(k); } return arr; }"
+    scriptControl.AddCode "function getKeys() { " & _
+        "  var arr = new Array(); " & _
+        "  var count = 0; " & _
+        "  for (var k in fieldsObj) { " & _
+        "    arr.push(k); " & _
+        "    count++; " & _
+        "  } " & _
+        "  return arr; " & _
+        "}"
 
     ' Get the keys array
     Set keys = scriptControl.Run("getKeys")
+    Debug.Print "GetObjectKeys: Got keys object, type = " & TypeName(keys)
 
     ' Convert JScript array to VBA array
     On Error Resume Next
     keyCount = keys.length
-    If Err.Number <> 0 Or keyCount = 0 Then
-        ' Return empty array if no keys
+    Debug.Print "GetObjectKeys: Key count = " & keyCount & ", Err = " & Err.Number
+
+    If Err.Number <> 0 Then
+        Debug.Print "GetObjectKeys: Error getting length - " & Err.Description
+        GetObjectKeys = Array()
+        Exit Function
+    End If
+
+    If keyCount = 0 Then
+        Debug.Print "GetObjectKeys: No keys found"
         GetObjectKeys = Array()
         Exit Function
     End If
@@ -425,14 +451,17 @@ Private Function GetObjectKeys(obj As Object) As Variant
     ReDim keyArray(0 To keyCount - 1)
     For i = 0 To keyCount - 1
         keyArray(i) = keys(i)
+        Debug.Print "GetObjectKeys: Key " & i & " = " & keyArray(i)
     Next i
 
     GetObjectKeys = keyArray
+    Debug.Print "GetObjectKeys: Returning " & keyCount & " keys"
 
     Set scriptControl = Nothing
     Exit Function
 
 ErrorHandler:
+    Debug.Print "GetObjectKeys: Error - " & Err.Description
     ' Return empty array on error
     GetObjectKeys = Array()
     Set scriptControl = Nothing
