@@ -252,10 +252,18 @@ Public Sub ShowIssueDetails(issueRow As Long)
 
     If issues.Count > 0 Then
         Set issue = issues(1)
-        Set fields = issue("fields")
 
-        ' Display field explorer
-        Call DisplayFieldExplorer(wsExplorer, issueKey, fields)
+        ' Get fields object using CallByName for JScript compatibility
+        On Error Resume Next
+        Set fields = CallByName(issue, "fields", VbGet)
+        On Error GoTo ErrorHandler
+
+        If Not fields Is Nothing Then
+            ' Display field explorer
+            Call DisplayFieldExplorer(wsExplorer, issueKey, fields)
+        Else
+            MsgBox "Unable to access issue fields", vbExclamation
+        End If
     End If
 
     Application.ScreenUpdating = True
@@ -305,8 +313,17 @@ Private Sub DisplayFieldExplorer(ws As Worksheet, issueKey As String, fields As 
             fieldName = CStr(key)
         End If
 
-        ' Get field value
-        fieldValue = FormatFieldValue(fields(key))
+        ' Get field value using CallByName for JScript compatibility
+        On Error Resume Next
+        Dim fieldObj As Variant
+        fieldObj = CallByName(fields, CStr(key), VbGet)
+        If Err.Number = 0 Then
+            fieldValue = FormatFieldValue(fieldObj)
+        Else
+            fieldValue = "[Error accessing field]"
+            Err.Clear
+        End If
+        On Error GoTo 0
 
         ws.Cells(row, 1).Value = fieldName
         ws.Cells(row, 2).Value = fieldValue
