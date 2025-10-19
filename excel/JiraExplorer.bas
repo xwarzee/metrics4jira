@@ -292,12 +292,19 @@ Private Sub DisplayFieldExplorer(ws As Worksheet, issueKey As String, fields As 
     Dim key As Variant
     Dim fieldName As String
     Dim fieldValue As String
+    Dim scriptControl As Object
+    Dim fieldObj As Variant
 
     ' Clear existing data
     ws.Rows("3:" & ws.Rows.Count).ClearContents
 
     ' Set issue key
     ws.Range("B1").Value = issueKey
+
+    ' Create ScriptControl for accessing field values
+    Set scriptControl = CreateObject("ScriptControl")
+    scriptControl.Language = "JScript"
+    scriptControl.AddObject "fieldsObj", fields, True
 
     ' Display fields
     row = 3
@@ -313,15 +320,21 @@ Private Sub DisplayFieldExplorer(ws As Worksheet, issueKey As String, fields As 
             fieldName = CStr(key)
         End If
 
-        ' Get field value using CallByName for JScript compatibility
+        ' Get field value using ScriptControl
         On Error Resume Next
-        Dim fieldObj As Variant
-        fieldObj = CallByName(fields, CStr(key), VbGet)
+        fieldObj = scriptControl.Eval("fieldsObj." & CStr(key))
         If Err.Number = 0 Then
             fieldValue = FormatFieldValue(fieldObj)
         Else
-            fieldValue = "[Error accessing field]"
+            ' Try with bracket notation if property name has special characters
             Err.Clear
+            fieldObj = scriptControl.Eval("fieldsObj['" & CStr(key) & "']")
+            If Err.Number = 0 Then
+                fieldValue = FormatFieldValue(fieldObj)
+            Else
+                fieldValue = "[Error accessing field]"
+                Err.Clear
+            End If
         End If
         On Error GoTo 0
 
@@ -333,6 +346,8 @@ Private Sub DisplayFieldExplorer(ws As Worksheet, issueKey As String, fields As 
 
     ' Auto-fit columns
     ws.Columns("A:B").AutoFit
+
+    Set scriptControl = Nothing
 End Sub
 
 ' ==========================================
