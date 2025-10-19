@@ -489,15 +489,21 @@ Private Sub CreateIssuesSheetLayout()
         .Font.Color = RGB(255, 255, 255)
     End With
 
-    ' Hide helper column
-    ws.Columns("G:G").Hidden = True
+    ' Hide helper column (row number for detail view)
+    ws.Columns("H:H").Hidden = True
 
     ' Freeze panes
+    On Error Resume Next
+    ws.Activate
     ws.Range("A2").Select
     ActiveWindow.FreezePanes = True
+    On Error GoTo 0
 
-    ' Auto-filter
-    ws.Range("A1:F1").AutoFilter
+    ' Auto-filter (disable first if already enabled, for macOS compatibility)
+    On Error Resume Next
+    If ws.AutoFilterMode Then ws.AutoFilterMode = False
+    ws.Range("A1:G1").AutoFilter
+    On Error GoTo 0
 End Sub
 
 ' ==========================================

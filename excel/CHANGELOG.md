@@ -2,6 +2,27 @@
 
 Historique des modifications et corrections apportées à la version Excel VBA.
 
+## Version 1.3 (2025-10-19)
+
+### 🐛 Corrections et Améliorations
+
+#### Compatibilité macOS Clarifiée
+**Problème** : La version Excel VBA ne peut pas fonctionner sur macOS en raison de limitations techniques.
+
+**Raisons** :
+- Les objets MSXML (MSXML2.ServerXMLHTTP) ne sont pas disponibles sur Excel Mac
+- ScriptControl pour le parsing JSON n'existe pas sur Mac
+- Les alternatives (MacScript + curl) nécessiteraient une réécriture complète
+
+**Documentation mise à jour** :
+- README.md clarifie que la version nécessite Windows
+- Alternatives documentées pour les utilisateurs Mac (versions Java et Python)
+- Section "Compatibilité" mise à jour avec icônes ✅/❌
+
+**Recommandation** : Les utilisateurs Mac doivent utiliser les versions Java ou Python du projet.
+
+---
+
 ## Version 1.2 (2025-10-18)
 
 ### ✨ Nouvelles Fonctionnalités
@@ -229,8 +250,9 @@ Debug.Print "Cloud API URL: " & url & "?" & params
 - ✅ Jira Server 9.12.24
 - ✅ Jira Cloud (API v3)
 
-### Nécessite adaptation
-- ⚠️ Excel pour Mac (ScriptControl non disponible → utiliser VBA-JSON)
+### Non compatible
+- ❌ Excel pour Mac (MSXML et ScriptControl non disponibles)
+  - **Alternative** : Utilisez les versions Java ou Python
 - ❌ Excel Online (VBA non supporté)
 
 ---

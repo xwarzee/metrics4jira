@@ -16,13 +16,24 @@ Cette version Excel permet d'interroger Jira et d'afficher les résultats direct
 - ✅ **Test de connexion** : Vérifiez votre configuration avant de lancer des recherches
 - ✅ **Métadonnées des champs** : Noms de champs lisibles automatiquement chargés
 - ✅ **Support Proxy** : Configuration proxy HTTP/HTTPS avec authentification
-- ✅ **Aucune installation requise** : Fonctionne avec Excel 2016+ sur Windows et Mac
+- ✅ **Aucune installation requise** : Fonctionne avec Excel 2016+ sur Windows uniquement
 
 ## Prérequis
 
-- Microsoft Excel 2016 ou supérieur (Windows ou Mac)
+- **Microsoft Excel 2016 ou supérieur sur Windows** (⚠️ Version Windows uniquement)
 - Un compte Jira avec un token API
 - Connexion Internet
+
+### ⚠️ Important : Compatibilité macOS
+
+**La version Excel VBA ne fonctionne PAS sur macOS** en raison de limitations techniques :
+- Les objets MSXML (requêtes HTTP) ne sont pas disponibles sur Excel Mac
+- ScriptControl (parsing JSON) n'existe pas sur Mac
+
+**Alternatives pour macOS** :
+- ✅ Utilisez la **version Java** (dans le dossier `/java`)
+- ✅ Utilisez la **version Python** (dans le dossier `/python`)
+- ⚙️ Utilisez Windows via Parallels, VMware ou Boot Camp
 
 ## Installation Rapide
 
@@ -202,9 +213,10 @@ L'application gère automatiquement ces différences en fonction de la version A
 - **Timeout** : Les requêtes très longues peuvent timeout
 
 ### Compatibilité
-- **Windows** : Pleine compatibilité avec Excel 2016+
-- **Mac** : Compatible mais nécessite une bibliothèque JSON tierce (ScriptControl non disponible)
-- **Excel Online** : Non compatible (VBA non supporté)
+- **Windows** : ✅ Pleine compatibilité avec Excel 2016+
+- **Mac** : ❌ Non compatible (MSXML et ScriptControl non disponibles)
+  - **Alternative** : Utilisez les versions Java ou Python
+- **Excel Online** : ❌ Non compatible (VBA non supporté)
 
 ## Dépannage
 
@@ -214,8 +226,11 @@ L'application gère automatiquement ces différences en fonction de la version A
 ### Erreur "Invalid request payload" (API v3)
 **Solution** : Assurez-vous d'avoir sélectionné "Jira Cloud (Current)" dans la configuration API Version.
 
-### Erreur "Microsoft Script Control non disponible" (Mac)
-**Solution** : Téléchargez VBA-JSON (https://github.com/VBA-tools/VBA-JSON) et modifiez le code pour l'utiliser à la place de ScriptControl.
+### Erreur sur macOS
+**Problème** : MSXML et ScriptControl ne sont pas disponibles sur Excel Mac.
+**Solution** : La version Excel VBA ne fonctionne que sur Windows. Pour macOS, utilisez :
+- Version Java (dans `/java`)
+- Version Python (dans `/python`)
 
 ### Performance lente
 **Solution** : Réduisez Max Results dans la configuration ou affinez vos requêtes JQL.
@@ -226,17 +241,31 @@ L'application gère automatiquement ces différences en fonction de la version A
 ## Avantages par Rapport aux Autres Versions
 
 ### Vs Version Java
-- ✅ **Pas d'installation** : Excel déjà installé sur la plupart des postes
+- ✅ **Pas d'installation** : Excel déjà installé sur les postes Windows
 - ✅ **Intégration Excel** : Données directement dans Excel pour analyses
 - ✅ **Courbe d'apprentissage** : Interface familière
+- ❌ **Windows uniquement** : Ne fonctionne pas sur macOS
 - ❌ **Performance** : Plus lent pour de gros volumes
 - ❌ **Fonctionnalités** : Moins de features avancées
 
 ### Vs Version Python
-- ✅ **Pas d'environnement Python** : Fonctionne avec juste Excel
+- ✅ **Pas d'environnement Python** : Fonctionne avec juste Excel (Windows)
 - ✅ **Interface Excel** : Idéal pour les utilisateurs Excel
+- ❌ **Windows uniquement** : Ne fonctionne pas sur macOS
 - ❌ **Flexibilité** : Moins flexible que Python pour scripting
 - ❌ **Automatisation** : Moins adapté pour l'automatisation
+
+### Choix de la Version
+
+**Utilisez Excel VBA si** :
+- ✅ Vous êtes sur Windows
+- ✅ Vous travaillez principalement dans Excel
+- ✅ Vous voulez une solution sans installation
+
+**Utilisez Java ou Python si** :
+- ✅ Vous êtes sur macOS
+- ✅ Vous avez besoin de performances
+- ✅ Vous voulez automatiser des tâches
 
 ## Développement
 

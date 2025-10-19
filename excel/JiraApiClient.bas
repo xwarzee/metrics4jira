@@ -9,6 +9,42 @@ Option Explicit
 ' ==========================================
 
 ' ==========================================
+' Function: CreateHttpObject
+' Description: Create HTTP object compatible with Windows and macOS
+' Returns: XMLHTTP object
+' Note: On macOS, MSXML objects are not available, so this will fail
+'       and we need to handle HTTP requests differently
+' ==========================================
+Private Function CreateHttpObject() As Object
+    On Error Resume Next
+
+    ' Check if we're on Mac
+    #If Mac Then
+        ' On Mac, MSXML is not available
+        ' We'll need to use a different approach (QueryTables or MacScript with curl)
+        Err.Raise vbObjectError + 1, "CreateHttpObject", _
+                  "MSXML not available on macOS. Please use Windows Excel or implement MacScript alternative."
+    #Else
+        ' Try Windows version first (with version number)
+        Set CreateHttpObject = CreateObject("MSXML2.ServerXMLHTTP.6.0")
+
+        ' If failed, try without version number
+        If CreateHttpObject Is Nothing Or Err.Number <> 0 Then
+            Err.Clear
+            Set CreateHttpObject = CreateObject("MSXML2.ServerXMLHTTP")
+        End If
+
+        ' If still failed, try basic XMLHTTP
+        If CreateHttpObject Is Nothing Or Err.Number <> 0 Then
+            Err.Clear
+            Set CreateHttpObject = CreateObject("MSXML2.XMLHTTP")
+        End If
+    #End If
+
+    On Error GoTo 0
+End Function
+
+' ==========================================
 ' Function: TestConnection
 ' Description: Test connection to Jira instance
 ' Returns: Boolean - True if successful, False otherwise
@@ -19,7 +55,7 @@ Public Function TestConnection() As Boolean
 
     On Error GoTo ErrorHandler
 
-    Set http = CreateObject("MSXML2.ServerXMLHTTP.6.0")
+    Set http = CreateHttpObject()
     url = JiraConfig.Config.JiraUrl & JiraConfig.GetApiPath() & "/myself"
 
     ' Configure proxy if enabled
@@ -82,7 +118,7 @@ Private Function SearchIssuesCloud(ByVal jql As String, _
 
     On Error GoTo ErrorHandler
 
-    Set http = CreateObject("MSXML2.ServerXMLHTTP.6.0")
+    Set http = CreateHttpObject()
 
     ' Configure proxy if enabled
     If JiraConfig.Config.UseProxy Then
@@ -143,7 +179,7 @@ Private Function SearchIssuesServer(ByVal jql As String, _
 
     On Error GoTo ErrorHandler
 
-    Set http = CreateObject("MSXML2.ServerXMLHTTP.6.0")
+    Set http = CreateHttpObject()
 
     ' Configure proxy if enabled
     If JiraConfig.Config.UseProxy Then
@@ -216,7 +252,7 @@ Public Function GetFieldMetadata() As Object
     On Error GoTo ErrorHandler
 
     Set fieldDict = CreateObject("Scripting.Dictionary")
-    Set http = CreateObject("MSXML2.ServerXMLHTTP.6.0")
+    Set http = CreateHttpObject()
 
     ' Configure proxy if enabled
     If JiraConfig.Config.UseProxy Then
