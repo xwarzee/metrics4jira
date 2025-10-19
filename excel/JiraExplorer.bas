@@ -246,6 +246,11 @@ Public Sub ShowIssueDetails(issueRow As Long)
 
     On Error GoTo ErrorHandler
 
+    ' Load field metadata if not already loaded
+    If fieldMetadata Is Nothing Then
+        Set fieldMetadata = JiraApiClient.GetFieldMetadata()
+    End If
+
     ' Fetch issue details
     jql = "key = " & issueKey
     Set issues = JiraApiClient.SearchIssues(jql, 0, 1)
