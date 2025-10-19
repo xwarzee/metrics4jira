@@ -431,24 +431,29 @@ Private Sub DisplayFieldExplorerSimple(ws As Worksheet, issueKey As String, issu
     ' Add function to get field value - build in parts to avoid line continuation limit
     Dim jsCode As String
     jsCode = "function getFieldVal(fieldKey) { try { var fields = issueObj.fields;"
-    jsCode = jsCode & "if (!fields) return '[No fields]'; var val = fields[fieldKey];"
+    jsCode = jsCode & "if (!fields) return '[No fields]';"
+    jsCode = jsCode & "if (!fields.hasOwnProperty(fieldKey)) return '';"
+    jsCode = jsCode & "var val = fields[fieldKey];"
     jsCode = jsCode & "if (val === null || val === undefined) return '';"
     jsCode = jsCode & "if (typeof val === 'string') return val;"
     jsCode = jsCode & "if (typeof val === 'number') return String(val);"
     jsCode = jsCode & "if (typeof val === 'boolean') return val ? 'true' : 'false';"
     jsCode = jsCode & "if (typeof val === 'object') {"
-    jsCode = jsCode & "if (Array.isArray(val)) { var items = [];"
-    jsCode = jsCode & "for (var i = 0; i < val.length; i++) { var item = val[i];"
+    jsCode = jsCode & "if (val.constructor && val.constructor.toString().indexOf('Array') > -1) {"
+    jsCode = jsCode & "var items = []; for (var i = 0; i < val.length; i++) {"
+    jsCode = jsCode & "var item = val[i];"
     jsCode = jsCode & "if (typeof item === 'string') items.push(item);"
-    jsCode = jsCode & "else if (item.name) items.push(item.name);"
-    jsCode = jsCode & "else if (item.value) items.push(item.value);"
-    jsCode = jsCode & "else if (item.key) items.push(item.key); }"
-    jsCode = jsCode & "return items.join(', '); }"
+    jsCode = jsCode & "else if (item && item.name) items.push(item.name);"
+    jsCode = jsCode & "else if (item && item.value) items.push(item.value);"
+    jsCode = jsCode & "else if (item && item.key) items.push(item.key); }"
+    jsCode = jsCode & "return items.length > 0 ? items.join(', ') : ''; }"
     jsCode = jsCode & "if (val.name) return val.name;"
     jsCode = jsCode & "if (val.value) return val.value;"
     jsCode = jsCode & "if (val.displayName) return val.displayName;"
-    jsCode = jsCode & "if (val.key) return val.key; return '[object]'; }"
-    jsCode = jsCode & "return String(val); } catch(e) { return '[Error]'; } }"
+    jsCode = jsCode & "if (val.key) return val.key;"
+    jsCode = jsCode & "if (val.self) return ''; return ''; }"
+    jsCode = jsCode & "return String(val);"
+    jsCode = jsCode & "} catch(e) { return ''; } }"
     scriptControl.AddCode jsCode
 
     ' Add function to get Epic Link
@@ -463,6 +468,17 @@ Private Sub DisplayFieldExplorerSimple(ws As Worksheet, issueKey As String, issu
     jsCode = jsCode & "return ''; } catch(e) { return ''; } }"
     scriptControl.AddCode jsCode
 
+    ' Add debug function to check field type
+    jsCode = "function getFieldType(fieldKey) { try {"
+    jsCode = jsCode & "var fields = issueObj.fields;"
+    jsCode = jsCode & "if (!fields || !fields.hasOwnProperty(fieldKey)) return 'missing';"
+    jsCode = jsCode & "var val = fields[fieldKey];"
+    jsCode = jsCode & "if (val === null) return 'null';"
+    jsCode = jsCode & "if (val === undefined) return 'undefined';"
+    jsCode = jsCode & "return typeof val;"
+    jsCode = jsCode & "} catch(e) { return 'error: ' + e.message; } }"
+    scriptControl.AddCode jsCode
+
     ' Display fields
     row = 3
     For i = LBound(commonFields) To UBound(commonFields)
@@ -475,10 +491,21 @@ Private Sub DisplayFieldExplorerSimple(ws As Worksheet, issueKey As String, issu
             fieldName = fieldKey
         End If
 
-        ' Get field value
+        ' Check field type for debugging
+        Dim fieldType As String
         On Error Resume Next
+        fieldType = scriptControl.Run("getFieldType", fieldKey)
+        If Err.Number <> 0 Then
+            fieldType = "error"
+            Err.Clear
+        End If
+
+        Debug.Print "Field '" & fieldKey & "' type: " & fieldType
+
+        ' Get field value
         fieldValue = scriptControl.Run("getFieldVal", fieldKey)
-        If Err.Number <> 0 Or Len(fieldValue) = 0 Then
+        If Err.Number <> 0 Then
+            Debug.Print "Error getting field '" & fieldKey & "': " & Err.Description
             fieldValue = ""
             Err.Clear
         End If
@@ -486,6 +513,7 @@ Private Sub DisplayFieldExplorerSimple(ws As Worksheet, issueKey As String, issu
 
         ' Only display if field has a value
         If Len(fieldValue) > 0 Then
+            Debug.Print "Field '" & fieldKey & "' = '" & fieldValue & "'"
             ws.Cells(row, 1).Value = fieldName
             ws.Cells(row, 2).Value = fieldValue
             row = row + 1
