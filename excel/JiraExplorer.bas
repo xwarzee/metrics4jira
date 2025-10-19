@@ -201,7 +201,10 @@ Private Sub DisplayIssues(ws As Worksheet, issues As Collection)
                 ws.Cells(row, 6).Value = GetEpicLink(fields)
                 ws.Cells(row, 7).Value = GetLabels(fields)
                 ws.Cells(row, 8).Value = GetFixVersions(fields)
-                ws.Cells(row, 9).Value = GetSprints(fields)
+                Dim sprintValue As String
+                sprintValue = GetSprints(fields)
+                Debug.Print "Row " & row & " Sprint value: '" & sprintValue & "'"
+                ws.Cells(row, 9).Value = sprintValue
                 ws.Cells(row, 10).Value = GetValue(fields, "created")
             End If
 
@@ -725,12 +728,33 @@ Private Function GetSprints(fields As Object) As String
 
     scriptControl.AddCode jsCode
 
+    ' Add debug function to see what's in the sprint field
+    Dim jsDebug As String
+    jsDebug = "function debugSprints() {"
+    jsDebug = jsDebug & "  try {"
+    jsDebug = jsDebug & "    var val = fieldsObj['customfield_10108'];"
+    jsDebug = jsDebug & "    if (val === null) return 'null';"
+    jsDebug = jsDebug & "    if (val === undefined) return 'undefined';"
+    jsDebug = jsDebug & "    if (typeof val === 'string') return 'string: ' + val;"
+    jsDebug = jsDebug & "    if (val.length !== undefined) return 'array length=' + val.length;"
+    jsDebug = jsDebug & "    return 'type: ' + typeof val;"
+    jsDebug = jsDebug & "  } catch(e) { return 'error: ' + e.message; }"
+    jsDebug = jsDebug & "}"
+    scriptControl.AddCode jsDebug
+
+    ' Execute debug first
+    Dim debugInfo As String
+    debugInfo = scriptControl.Run("debugSprints")
+    Debug.Print "Sprint field debug: " & debugInfo
+
     ' Execute the function
     result = scriptControl.Run("getSprints")
 
     If Err.Number = 0 Then
         GetSprints = result
+        Debug.Print "GetSprints returned: '" & result & "'"
     Else
+        Debug.Print "GetSprints error: " & Err.Description
         GetSprints = ""
     End If
 
