@@ -832,18 +832,19 @@ Private Sub CreateIssuesSheetLayout()
     ws.Range("D1").Value = "Priority"
     ws.Range("E1").Value = "Assignee"
     ws.Range("F1").Value = "Epic Link"
-    ws.Range("G1").Value = "Created"
+    ws.Range("G1").Value = "Labels"
+    ws.Range("H1").Value = "Created"
     ws.Range("I1").Value = "Total: 0"
 
     ' Format headers
-    With ws.Range("A1:G1")
+    With ws.Range("A1:H1")
         .Font.Bold = True
         .Interior.Color = RGB(68, 114, 196)
         .Font.Color = RGB(255, 255, 255)
     End With
 
     ' Hide helper column (row number for detail view)
-    ws.Columns("H:H").Hidden = True
+    ws.Columns("I:I").Hidden = True
 
     ' Freeze panes
     On Error Resume Next
@@ -855,7 +856,7 @@ Private Sub CreateIssuesSheetLayout()
     ' Auto-filter (disable first if already enabled, for macOS compatibility)
     On Error Resume Next
     If ws.AutoFilterMode Then ws.AutoFilterMode = False
-    ws.Range("A1:G1").AutoFilter
+    ws.Range("A1:H1").AutoFilter
     On Error GoTo 0
 End Sub
 
