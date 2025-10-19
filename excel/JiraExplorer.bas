@@ -706,7 +706,7 @@ Private Function GetSprints(fields As Object) As String
     ' Sprint can be in various custom fields (customfield_10020, customfield_10010, etc.)
     jsCode = "function getSprints() {"
     jsCode = jsCode & "  try {"
-    jsCode = jsCode & "    var sprintFieldIds = ['customfield_10020', 'customfield_10010', 'customfield_10104', 'customfield_10001'];"
+    jsCode = jsCode & "    var sprintFieldIds = ['customfield_10108', 'customfield_10020', 'customfield_10010', 'customfield_10104', 'customfield_10001'];"
     jsCode = jsCode & "    for (var f = 0; f < sprintFieldIds.length; f++) {"
     jsCode = jsCode & "      var sprints = fieldsObj[sprintFieldIds[f]];"
     jsCode = jsCode & "      if (sprints && sprints.length > 0) {"
