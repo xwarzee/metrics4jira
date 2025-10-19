@@ -693,92 +693,123 @@ End Function
 ' ==========================================
 Private Function GetSprints(fields As Object) As String
     Dim scriptControl As Object
-    Dim jsCode As String
-    Dim result As String
+    Dim sprintArray As Object
+    Dim sprintNames As String
+    Dim i As Long
+    Dim sprintStr As String
+    Dim sprintName As String
 
     On Error Resume Next
 
-    ' Create ScriptControl to handle JScript array properly
-    Set scriptControl = CreateObject("ScriptControl")
-    scriptControl.Language = "JScript"
+    ' Try different custom field IDs
+    Dim fieldIds As Variant
+    fieldIds = Array("customfield_10108", "customfield_10020", "customfield_10010", "customfield_10104", "customfield_10001")
 
-    ' Add the fields object
-    scriptControl.AddObject "fieldsObj", fields, True
+    Dim fieldId As Variant
+    For Each fieldId In fieldIds
+        Err.Clear
+        Set sprintArray = Nothing
+        Set sprintArray = fields(fieldId)
 
-    ' Create JavaScript function to extract sprint names
-    ' Sprint can be in various custom fields (customfield_10020, customfield_10010, etc.)
-    jsCode = "function getSprints() {"
-    jsCode = jsCode & "  try {"
-    jsCode = jsCode & "    var sprintFieldIds = ['customfield_10108', 'customfield_10020', 'customfield_10010', 'customfield_10104', 'customfield_10001'];"
-    jsCode = jsCode & "    for (var f = 0; f < sprintFieldIds.length; f++) {"
-    jsCode = jsCode & "      var sprints = fieldsObj[sprintFieldIds[f]];"
-    jsCode = jsCode & "      if (sprints && sprints.length > 0) {"
-    jsCode = jsCode & "        var result = [];"
-    jsCode = jsCode & "        for (var i = 0; i < sprints.length; i++) {"
-    jsCode = jsCode & "          var sprint = sprints[i];"
-    jsCode = jsCode & "          if (typeof sprint === 'string') {"
-    jsCode = jsCode & "            var match = sprint.match(/name=([^,\\]]+)/);"
-    jsCode = jsCode & "            if (match) {"
-    jsCode = jsCode & "              var name = match[1].replace(/^[\"']|[\"']$/g, '');"
-    jsCode = jsCode & "              result.push(name);"
-    jsCode = jsCode & "            }"
-    jsCode = jsCode & "          } else if (sprint && sprint.name) {"
-    jsCode = jsCode & "            result.push(sprint.name);"
-    jsCode = jsCode & "          }"
-    jsCode = jsCode & "        }"
-    jsCode = jsCode & "        if (result.length > 0) return result.join(', ');"
-    jsCode = jsCode & "      }"
-    jsCode = jsCode & "    }"
-    jsCode = jsCode & "    return '';"
-    jsCode = jsCode & "  } catch(e) { return 'Error: ' + e.message; }"
-    jsCode = jsCode & "}"
+        If Not sprintArray Is Nothing Then
+            Debug.Print "Found sprint array in field: " & fieldId
 
-    scriptControl.AddCode jsCode
+            ' Create ScriptControl to get array length
+            Set scriptControl = CreateObject("ScriptControl")
+            scriptControl.Language = "JScript"
+            scriptControl.AddObject "sprintArr", sprintArray, True
 
-    ' Add debug function to see what's in the sprint field
-    Dim jsDebug As String
-    jsDebug = "function debugSprints() {"
-    jsDebug = jsDebug & "  try {"
-    jsDebug = jsDebug & "    var val = fieldsObj['customfield_10108'];"
-    jsDebug = jsDebug & "    if (val === null) return 'null';"
-    jsDebug = jsDebug & "    if (val === undefined) return 'undefined';"
-    jsDebug = jsDebug & "    if (typeof val === 'string') return 'string: ' + val;"
-    jsDebug = jsDebug & "    if (val.length !== undefined && val.length > 0) {"
-    jsDebug = jsDebug & "      var first = val[0];"
-    jsDebug = jsDebug & "      var info = 'array[' + val.length + '] first=';"
-    jsDebug = jsDebug & "      if (typeof first === 'string') info += 'string:' + first;"
-    jsDebug = jsDebug & "      else if (typeof first === 'object') {"
-    jsDebug = jsDebug & "        info += 'object ';"
-    jsDebug = jsDebug & "        if (first.name) info += 'name=' + first.name;"
-    jsDebug = jsDebug & "        else if (first.Name) info += 'Name=' + first.Name;"
-    jsDebug = jsDebug & "        else info += 'keys=' + Object.keys(first).join(',');"
-    jsDebug = jsDebug & "      }"
-    jsDebug = jsDebug & "      else info += typeof first;"
-    jsDebug = jsDebug & "      return info;"
-    jsDebug = jsDebug & "    }"
-    jsDebug = jsDebug & "    return 'type: ' + typeof val;"
-    jsDebug = jsDebug & "  } catch(e) { return 'error: ' + e.message; }"
-    jsDebug = jsDebug & "}"
-    scriptControl.AddCode jsDebug
+            ' Get array length
+            Dim arrayLength As Long
+            scriptControl.AddCode "function getLength() { return sprintArr.length; }"
+            arrayLength = scriptControl.Run("getLength")
 
-    ' Execute debug first
-    Dim debugInfo As String
-    debugInfo = scriptControl.Run("debugSprints")
-    Debug.Print "Sprint field debug: " & debugInfo
+            Debug.Print "Sprint array length: " & arrayLength
 
-    ' Execute the function
-    result = scriptControl.Run("getSprints")
+            If arrayLength > 0 Then
+                ' Extract each sprint name
+                sprintNames = ""
 
-    If Err.Number = 0 Then
-        GetSprints = result
-        Debug.Print "GetSprints returned: '" & result & "'"
-    Else
-        Debug.Print "GetSprints error: " & Err.Description
-        GetSprints = ""
-    End If
+                For i = 0 To arrayLength - 1
+                    Err.Clear
 
-    Set scriptControl = Nothing
+                    ' Get sprint element as string
+                    Dim getElemCode As String
+                    getElemCode = "function getElement() { return sprintArr[" & i & "]; }"
+                    scriptControl.AddCode getElemCode
+                    sprintStr = scriptControl.Run("getElement")
+
+                    If Err.Number = 0 And Len(sprintStr) > 0 Then
+                        Debug.Print "Sprint[" & i & "]: " & Left(sprintStr, 100)
+
+                        ' Extract name using regex
+                        ' Format: "...name=Sprint #13,..." or "...name="Sprint #13",..."
+                        sprintName = ExtractSprintName(sprintStr)
+
+                        If Len(sprintName) > 0 Then
+                            If Len(sprintNames) > 0 Then
+                                sprintNames = sprintNames & ", "
+                            End If
+                            sprintNames = sprintNames & sprintName
+                        End If
+                    Else
+                        Debug.Print "Error getting sprint[" & i & "]: " & Err.Description
+                    End If
+                Next i
+
+                If Len(sprintNames) > 0 Then
+                    GetSprints = sprintNames
+                    Debug.Print "Final sprints: " & sprintNames
+                    Set scriptControl = Nothing
+                    On Error GoTo 0
+                    Exit Function
+                End If
+            End If
+
+            Set scriptControl = Nothing
+        End If
+    Next fieldId
+
+    GetSprints = ""
     On Error GoTo 0
+End Function
+
+' Helper function to extract sprint name from string
+Private Function ExtractSprintName(sprintStr As String) As String
+    Dim namePos As Long
+    Dim nameStart As Long
+    Dim nameEnd As Long
+    Dim nameValue As String
+
+    ' Find "name=" in the string
+    namePos = InStr(1, sprintStr, "name=", vbTextCompare)
+
+    If namePos > 0 Then
+        nameStart = namePos + 5 ' Length of "name="
+
+        ' Check if name is quoted
+        If Mid(sprintStr, nameStart, 1) = """" Or Mid(sprintStr, nameStart, 1) = "'" Then
+            ' Name is quoted, find closing quote
+            Dim quoteChar As String
+            quoteChar = Mid(sprintStr, nameStart, 1)
+            nameStart = nameStart + 1
+            nameEnd = InStr(nameStart, sprintStr, quoteChar)
+        Else
+            ' Name is not quoted, find next comma or bracket
+            nameEnd = InStr(nameStart, sprintStr, ",")
+            Dim bracketPos As Long
+            bracketPos = InStr(nameStart, sprintStr, "]")
+
+            If bracketPos > 0 And (nameEnd = 0 Or bracketPos < nameEnd) Then
+                nameEnd = bracketPos
+            End If
+        End If
+
+        If nameEnd > nameStart Then
+            nameValue = Mid(sprintStr, nameStart, nameEnd - nameStart)
+            ExtractSprintName = Trim(nameValue)
+        End If
+    End If
 End Function
 
 Private Function GetFixVersions(fields As Object) As String
