@@ -306,24 +306,51 @@ Private Sub DisplayFieldExplorer(ws As Worksheet, issueKey As String, fields As 
     scriptControl.Language = "JScript"
     scriptControl.AddObject "fieldsObj", fields, True
 
+    ' Add helper function to convert object to string (without JSON.stringify)
+    scriptControl.AddCode "function objToString(obj) {" & _
+        "  if (obj === null || obj === undefined) return 'null';" & _
+        "  var str = '{';" & _
+        "  var first = true;" & _
+        "  for (var k in obj) {" & _
+        "    if (!first) str += ', ';" & _
+        "    str += k + ': ' + obj[k];" & _
+        "    first = false;" & _
+        "  }" & _
+        "  return str + '}';" & _
+        "}"
+
     ' Add helper function to get field value as string
     scriptControl.AddCode "function getFieldValue(key) {" & _
         "  try {" & _
         "    var val = fieldsObj[key];" & _
-        "    if (val === null || val === undefined) return '';" & _
-        "    if (typeof val === 'object') {" & _
-        "      if (val.name) return val.name;" & _
-        "      if (val.value) return val.value;" & _
-        "      if (val.displayName) return val.displayName;" & _
-        "      return JSON.stringify(val);" & _
+        "    if (val === null) return '[null]';" & _
+        "    if (val === undefined) return '[undefined]';" & _
+        "    var valType = typeof val;" & _
+        "    if (valType === 'string') return val;" & _
+        "    if (valType === 'number') return String(val);" & _
+        "    if (valType === 'boolean') return val ? 'true' : 'false';" & _
+        "    if (valType === 'object') {" & _
+        "      if (val.name !== undefined) return String(val.name);" & _
+        "      if (val.value !== undefined) return String(val.value);" & _
+        "      if (val.displayName !== undefined) return String(val.displayName);" & _
+        "      if (val.key !== undefined) return String(val.key);" & _
+        "      return objToString(val);" & _
         "    }" & _
-        "    return String(val);" & _
+        "    return '[type: ' + valType + ']';" & _
         "  } catch(e) { return '[Error: ' + e.message + ']'; }" & _
         "}"
 
     ' Display fields
     row = 3
-    For Each key In GetObjectKeys(fields)
+    Dim keys As Variant
+    keys = GetObjectKeys(fields)
+
+    Debug.Print "Number of keys found: " & UBound(keys) - LBound(keys) + 1
+
+    Dim i As Long
+    For i = LBound(keys) To UBound(keys)
+        key = keys(i)
+
         ' Get field name from metadata
         If Not fieldMetadata Is Nothing Then
             If fieldMetadata.Exists(CStr(key)) Then
@@ -339,8 +366,11 @@ Private Sub DisplayFieldExplorer(ws As Worksheet, issueKey As String, fields As 
         On Error Resume Next
         fieldValue = scriptControl.Run("getFieldValue", CStr(key))
         If Err.Number <> 0 Then
-            fieldValue = "[Error accessing field]"
+            fieldValue = "[Error: " & Err.Description & "]"
+            Debug.Print "Error for key '" & key & "': " & Err.Description
             Err.Clear
+        Else
+            Debug.Print "Key: " & key & " = " & Left(fieldValue, 50)
         End If
         On Error GoTo 0
 
@@ -348,7 +378,7 @@ Private Sub DisplayFieldExplorer(ws As Worksheet, issueKey As String, fields As 
         ws.Cells(row, 2).Value = fieldValue
 
         row = row + 1
-    Next key
+    Next i
 
     ' Auto-fit columns
     ws.Columns("A:B").AutoFit
