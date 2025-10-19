@@ -428,54 +428,40 @@ Private Sub DisplayFieldExplorerSimple(ws As Worksheet, issueKey As String, issu
                          "aggregatetimeoriginalestimate", "aggregatetimeestimate", "aggregatetimespent", _
                          "resolution", "customfield_10014", "customfield_10008", "customfield_10011")
 
-    ' Add function to get field value
-    scriptControl.AddCode "function getFieldVal(fieldKey) {" & _
-        "  try {" & _
-        "    var fields = issueObj.fields;" & _
-        "    if (!fields) return '[No fields]';" & _
-        "    var val = fields[fieldKey];" & _
-        "    if (val === null || val === undefined) return '';" & _
-        "    if (typeof val === 'string') return val;" & _
-        "    if (typeof val === 'number') return String(val);" & _
-        "    if (typeof val === 'boolean') return val ? 'true' : 'false';" & _
-        "    if (typeof val === 'object') {" & _
-        "      if (Array.isArray(val)) {" & _
-        "        var items = [];" & _
-        "        for (var i = 0; i < val.length; i++) {" & _
-        "          var item = val[i];" & _
-        "          if (typeof item === 'string') items.push(item);" & _
-        "          else if (item.name) items.push(item.name);" & _
-        "          else if (item.value) items.push(item.value);" & _
-        "          else if (item.key) items.push(item.key);" & _
-        "        }" & _
-        "        return items.join(', ');" & _
-        "      }" & _
-        "      if (val.name) return val.name;" & _
-        "      if (val.value) return val.value;" & _
-        "      if (val.displayName) return val.displayName;" & _
-        "      if (val.key) return val.key;" & _
-        "      return '[object]';" & _
-        "    }" & _
-        "    return String(val);" & _
-        "  } catch(e) { return '[Error: ' + e.message + ']'; }" & _
-        "}"
+    ' Add function to get field value - build in parts to avoid line continuation limit
+    Dim jsCode As String
+    jsCode = "function getFieldVal(fieldKey) { try { var fields = issueObj.fields;"
+    jsCode = jsCode & "if (!fields) return '[No fields]'; var val = fields[fieldKey];"
+    jsCode = jsCode & "if (val === null || val === undefined) return '';"
+    jsCode = jsCode & "if (typeof val === 'string') return val;"
+    jsCode = jsCode & "if (typeof val === 'number') return String(val);"
+    jsCode = jsCode & "if (typeof val === 'boolean') return val ? 'true' : 'false';"
+    jsCode = jsCode & "if (typeof val === 'object') {"
+    jsCode = jsCode & "if (Array.isArray(val)) { var items = [];"
+    jsCode = jsCode & "for (var i = 0; i < val.length; i++) { var item = val[i];"
+    jsCode = jsCode & "if (typeof item === 'string') items.push(item);"
+    jsCode = jsCode & "else if (item.name) items.push(item.name);"
+    jsCode = jsCode & "else if (item.value) items.push(item.value);"
+    jsCode = jsCode & "else if (item.key) items.push(item.key); }"
+    jsCode = jsCode & "return items.join(', '); }"
+    jsCode = jsCode & "if (val.name) return val.name;"
+    jsCode = jsCode & "if (val.value) return val.value;"
+    jsCode = jsCode & "if (val.displayName) return val.displayName;"
+    jsCode = jsCode & "if (val.key) return val.key; return '[object]'; }"
+    jsCode = jsCode & "return String(val); } catch(e) { return '[Error]'; } }"
+    scriptControl.AddCode jsCode
 
-    ' Add function to get Epic Link (tries multiple custom field IDs)
-    scriptControl.AddCode "function getEpicLink() {" & _
-        "  try {" & _
-        "    var fields = issueObj.fields;" & _
-        "    if (!fields) return '';" & _
-        "    var epicFieldIds = ['customfield_10014', 'customfield_10008', 'customfield_10100', 'customfield_10011'];" & _
-        "    for (var i = 0; i < epicFieldIds.length; i++) {" & _
-        "      var val = fields[epicFieldIds[i]];" & _
-        "      if (val !== null && val !== undefined && val !== '') {" & _
-        "        if (typeof val === 'string') return val;" & _
-        "        if (typeof val === 'object' && val.key) return val.key;" & _
-        "      }" & _
-        "    }" & _
-        "    return '';" & _
-        "  } catch(e) { return ''; }" & _
-        "}"
+    ' Add function to get Epic Link
+    jsCode = "function getEpicLink() { try { var fields = issueObj.fields;"
+    jsCode = jsCode & "if (!fields) return '';"
+    jsCode = jsCode & "var epicFieldIds = ['customfield_10014','customfield_10008','customfield_10100','customfield_10011'];"
+    jsCode = jsCode & "for (var i = 0; i < epicFieldIds.length; i++) {"
+    jsCode = jsCode & "var val = fields[epicFieldIds[i]];"
+    jsCode = jsCode & "if (val !== null && val !== undefined && val !== '') {"
+    jsCode = jsCode & "if (typeof val === 'string') return val;"
+    jsCode = jsCode & "if (typeof val === 'object' && val.key) return val.key; } }"
+    jsCode = jsCode & "return ''; } catch(e) { return ''; } }"
+    scriptControl.AddCode jsCode
 
     ' Display fields
     row = 3
