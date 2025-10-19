@@ -241,6 +241,65 @@ End Function
 ' Description: Get field metadata for display names
 ' Returns: Dictionary of field IDs to names
 ' ==========================================
+Public Function GetIssueJson(ByVal issueKey As String) As String
+    Dim http As Object
+    Dim url As String
+    Dim requestBody As String
+
+    On Error GoTo ErrorHandler
+
+    Set http = CreateHttpObject()
+
+    ' Configure proxy if enabled
+    If JiraConfig.Config.UseProxy Then
+        Call ConfigureProxy(http)
+    End If
+
+    ' Build URL for getting single issue
+    If JiraConfig.Config.ApiVersionValue = JiraConfig.CLOUD_CURRENT Then
+        url = JiraConfig.Config.JiraUrl & JiraConfig.GetApiPath() & "/issue/" & issueKey
+        url = url & "?fields=*navigable"
+
+        http.Open "GET", url, False
+    Else
+        ' Jira Server - use search endpoint with JQL
+        url = JiraConfig.Config.JiraUrl & JiraConfig.GetSearchEndpoint()
+
+        requestBody = "{"
+        requestBody = requestBody & """jql"":""key=" & issueKey & ""","
+        requestBody = requestBody & """startAt"":0,"
+        requestBody = requestBody & """maxResults"":1,"
+        requestBody = requestBody & """fields"":[""*all""]"
+        requestBody = requestBody & "}"
+
+        http.Open "POST", url, False
+        http.setRequestHeader "Content-Type", "application/json"
+        http.setRequestHeader "X-Atlassian-Token", "no-check"
+    End If
+
+    http.setRequestHeader "Authorization", JiraConfig.GetAuthHeader()
+    http.setRequestHeader "Accept", "application/json"
+
+    If JiraConfig.Config.ApiVersionValue = JiraConfig.CLOUD_CURRENT Then
+        http.Send
+    Else
+        http.Send requestBody
+    End If
+
+    If http.Status = 200 Then
+        GetIssueJson = http.responseText
+    Else
+        GetIssueJson = ""
+    End If
+
+    Set http = Nothing
+    Exit Function
+
+ErrorHandler:
+    GetIssueJson = ""
+    Set http = Nothing
+End Function
+
 Public Function GetFieldMetadata() As Object
     Dim http As Object
     Dim url As String

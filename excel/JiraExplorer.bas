@@ -251,25 +251,17 @@ Public Sub ShowIssueDetails(issueRow As Long)
         Set fieldMetadata = JiraApiClient.GetFieldMetadata()
     End If
 
-    ' Fetch issue details
-    jql = "key = " & issueKey
-    Set issues = JiraApiClient.SearchIssues(jql, 0, 1)
+    ' Fetch issue details as JSON string
+    Dim issueJson As String
+    issueJson = JiraApiClient.GetIssueJson(issueKey)
 
-    If issues.Count > 0 Then
-        Set issue = issues(1)
-
-        ' Get fields object using CallByName for JScript compatibility
-        On Error Resume Next
-        Set fields = CallByName(issue, "fields", VbGet)
-        On Error GoTo ErrorHandler
-
-        If Not fields Is Nothing Then
-            Debug.Print "fields object type: " & TypeName(fields)
-            ' Display field explorer - pass the full issue object instead
-            Call DisplayFieldExplorerSimple(wsExplorer, issueKey, issue)
-        Else
-            MsgBox "Unable to access issue fields", vbExclamation
-        End If
+    If Len(issueJson) > 0 Then
+        Debug.Print "Issue JSON length: " & Len(issueJson)
+        Debug.Print "Issue JSON preview: " & Left(issueJson, 200)
+        ' Display field explorer - pass the JSON string
+        Call DisplayFieldExplorerSimple(wsExplorer, issueKey, issueJson)
+    Else
+        MsgBox "Unable to fetch issue details", vbExclamation
     End If
 
     Application.ScreenUpdating = True
@@ -398,9 +390,9 @@ End Sub
 ' Parameters:
 '   ws - Worksheet to display in
 '   issueKey - Issue key
-'   issue - Full issue object
+'   issueJson - JSON string of the issue or search result
 ' ==========================================
-Private Sub DisplayFieldExplorerSimple(ws As Worksheet, issueKey As String, issue As Object)
+Private Sub DisplayFieldExplorerSimple(ws As Worksheet, issueKey As String, issueJson As String)
     Dim row As Long
     Dim scriptControl As Object
     Dim commonFields As Variant
@@ -418,7 +410,15 @@ Private Sub DisplayFieldExplorerSimple(ws As Worksheet, issueKey As String, issu
     ' Create ScriptControl for accessing values
     Set scriptControl = CreateObject("ScriptControl")
     scriptControl.Language = "JScript"
-    scriptControl.AddObject "issueObj", issue, True
+
+    ' Parse JSON and extract issue
+    ' For Jira Server, the response has issues array; for Cloud, it's the issue directly
+    Dim jsCode As String
+    jsCode = "var rawData = " & issueJson & ";"
+    jsCode = jsCode & "var issueObj = rawData.issues ? rawData.issues[0] : rawData;"
+    scriptControl.AddCode jsCode
+
+    Debug.Print "JSON loaded into ScriptControl"
 
     ' Define common Jira fields to display
     commonFields = Array("summary", "description", "status", "priority", "assignee", _
