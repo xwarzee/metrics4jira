@@ -306,6 +306,21 @@ Private Sub DisplayFieldExplorer(ws As Worksheet, issueKey As String, fields As 
     scriptControl.Language = "JScript"
     scriptControl.AddObject "fieldsObj", fields, True
 
+    ' Add helper function to get field value as string
+    scriptControl.AddCode "function getFieldValue(key) {" & _
+        "  try {" & _
+        "    var val = fieldsObj[key];" & _
+        "    if (val === null || val === undefined) return '';" & _
+        "    if (typeof val === 'object') {" & _
+        "      if (val.name) return val.name;" & _
+        "      if (val.value) return val.value;" & _
+        "      if (val.displayName) return val.displayName;" & _
+        "      return JSON.stringify(val);" & _
+        "    }" & _
+        "    return String(val);" & _
+        "  } catch(e) { return '[Error: ' + e.message + ']'; }" & _
+        "}"
+
     ' Display fields
     row = 3
     For Each key In GetObjectKeys(fields)
@@ -320,21 +335,12 @@ Private Sub DisplayFieldExplorer(ws As Worksheet, issueKey As String, fields As 
             fieldName = CStr(key)
         End If
 
-        ' Get field value using ScriptControl
+        ' Get field value using helper function
         On Error Resume Next
-        fieldObj = scriptControl.Eval("fieldsObj." & CStr(key))
-        If Err.Number = 0 Then
-            fieldValue = FormatFieldValue(fieldObj)
-        Else
-            ' Try with bracket notation if property name has special characters
+        fieldValue = scriptControl.Run("getFieldValue", CStr(key))
+        If Err.Number <> 0 Then
+            fieldValue = "[Error accessing field]"
             Err.Clear
-            fieldObj = scriptControl.Eval("fieldsObj['" & CStr(key) & "']")
-            If Err.Number = 0 Then
-                fieldValue = FormatFieldValue(fieldObj)
-            Else
-                fieldValue = "[Error accessing field]"
-                Err.Clear
-            End If
         End If
         On Error GoTo 0
 
