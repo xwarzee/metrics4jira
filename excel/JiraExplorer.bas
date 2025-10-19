@@ -343,15 +343,47 @@ End Sub
 ' ==========================================
 Private Function GetObjectKeys(obj As Object) As Variant
     Dim scriptControl As Object
-    Dim keys As Object
+    Dim keys As Variant
+    Dim i As Long
+    Dim keyArray() As Variant
+    Dim keyCount As Long
+
+    On Error GoTo ErrorHandler
 
     Set scriptControl = CreateObject("ScriptControl")
     scriptControl.Language = "JScript"
-    scriptControl.AddCode "function getKeys(obj) { var arr = []; for (var k in obj) { arr.push(k); } return arr; }"
 
-    Set keys = scriptControl.Run("getKeys", obj)
-    GetObjectKeys = keys.toArray()
+    ' Add the object to the script context
+    scriptControl.AddObject "fieldsObj", obj, True
 
+    ' Create function to get keys
+    scriptControl.AddCode "function getKeys() { var arr = new Array(); for (var k in fieldsObj) { arr.push(k); } return arr; }"
+
+    ' Get the keys array
+    Set keys = scriptControl.Run("getKeys")
+
+    ' Convert JScript array to VBA array
+    On Error Resume Next
+    keyCount = keys.length
+    If Err.Number <> 0 Or keyCount = 0 Then
+        ' Return empty array if no keys
+        GetObjectKeys = Array()
+        Exit Function
+    End If
+
+    ReDim keyArray(0 To keyCount - 1)
+    For i = 0 To keyCount - 1
+        keyArray(i) = keys(i)
+    Next i
+
+    GetObjectKeys = keyArray
+
+    Set scriptControl = Nothing
+    Exit Function
+
+ErrorHandler:
+    ' Return empty array on error
+    GetObjectKeys = Array()
     Set scriptControl = Nothing
 End Function
 
