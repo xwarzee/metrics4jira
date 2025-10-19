@@ -198,19 +198,20 @@ Private Sub DisplayIssues(ws As Worksheet, issues As Collection)
                 ws.Cells(row, 3).Value = GetNestedValue(fields, "status", "name")
                 ws.Cells(row, 4).Value = GetNestedValue(fields, "priority", "name")
                 ws.Cells(row, 5).Value = GetNestedValue(fields, "assignee", "displayName")
-                ws.Cells(row, 6).Value = GetValue(fields, "created")
+                ws.Cells(row, 6).Value = GetEpicLink(fields)
+                ws.Cells(row, 7).Value = GetValue(fields, "created")
             End If
 
             ' Store full issue data in hidden column for detail view
-            ws.Cells(row, 7).Value = row
-            ws.Cells(row, 7).NumberFormat = "0"
+            ws.Cells(row, 8).Value = row
+            ws.Cells(row, 8).NumberFormat = "0"
 
             row = row + 1
         End If
     Next issue
 
     ' Auto-fit columns
-    ws.Columns("A:F").AutoFit
+    ws.Columns("A:G").AutoFit
 
     ' Update result count
     ws.Range("H1").Value = "Total: " & issues.Count
@@ -402,6 +403,48 @@ Private Function GetNestedValue(obj As Object, key1 As String, key2 As String) A
 End Function
 
 ' ==========================================
+' Function: GetEpicLink
+' Description: Get Epic Link from fields (tries multiple custom field IDs)
+' ==========================================
+Private Function GetEpicLink(fields As Object) As String
+    Dim epicLink As String
+    Dim fieldIds As Variant
+    Dim fieldId As Variant
+
+    ' Common Epic Link custom field IDs
+    ' customfield_10014 - Jira Cloud default
+    ' customfield_10008 - Common in Jira Server
+    ' customfield_10100 - Another common ID
+    fieldIds = Array("customfield_10014", "customfield_10008", "customfield_10100", "customfield_10011")
+
+    On Error Resume Next
+
+    ' Try each possible field ID
+    For Each fieldId In fieldIds
+        Err.Clear
+        epicLink = GetValue(fields, CStr(fieldId))
+
+        If Err.Number = 0 And Len(epicLink) > 0 Then
+            GetEpicLink = epicLink
+            Exit Function
+        End If
+    Next fieldId
+
+    ' If not found in custom fields, try standard epic link field name
+    Err.Clear
+    epicLink = GetValue(fields, "epicLink")
+    If Err.Number = 0 And Len(epicLink) > 0 Then
+        GetEpicLink = epicLink
+        Exit Function
+    End If
+
+    On Error GoTo 0
+
+    ' Return empty string if not found
+    GetEpicLink = ""
+End Function
+
+' ==========================================
 ' Subroutine: EnsureSheetExists
 ' Description: Ensure sheet exists, create if not
 ' ==========================================
@@ -435,11 +478,12 @@ Private Sub CreateIssuesSheetLayout()
     ws.Range("C1").Value = "Status"
     ws.Range("D1").Value = "Priority"
     ws.Range("E1").Value = "Assignee"
-    ws.Range("F1").Value = "Created"
-    ws.Range("H1").Value = "Total: 0"
+    ws.Range("F1").Value = "Epic Link"
+    ws.Range("G1").Value = "Created"
+    ws.Range("I1").Value = "Total: 0"
 
     ' Format headers
-    With ws.Range("A1:F1")
+    With ws.Range("A1:G1")
         .Font.Bold = True
         .Interior.Color = RGB(68, 114, 196)
         .Font.Color = RGB(255, 255, 255)
