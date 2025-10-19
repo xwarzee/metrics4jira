@@ -426,7 +426,7 @@ Private Sub DisplayFieldExplorerSimple(ws As Worksheet, issueKey As String, issu
                          "issuetype", "project", "components", "labels", "fixVersions", _
                          "versions", "timeoriginalestimate", "timeestimate", "timespent", _
                          "aggregatetimeoriginalestimate", "aggregatetimeestimate", "aggregatetimespent", _
-                         "resolution", "customfield_10014", "customfield_10008", "customfield_10011")
+                         "resolution", "customfield_10109", "customfield_10014", "customfield_10008", "customfield_10011")
 
     ' Add function to get field value - build in parts to avoid line continuation limit
     jsCode = "function getFieldVal(fieldKey) { try { var fields = issueObj.fields;"
@@ -458,7 +458,7 @@ Private Sub DisplayFieldExplorerSimple(ws As Worksheet, issueKey As String, issu
     ' Add function to get Epic Link
     jsCode = "function getEpicLink() { try { var fields = issueObj.fields;"
     jsCode = jsCode & "if (!fields) return '';"
-    jsCode = jsCode & "var epicFieldIds = ['customfield_10014','customfield_10008','customfield_10100','customfield_10011'];"
+    jsCode = jsCode & "var epicFieldIds = ['customfield_10109','customfield_10014','customfield_10008','customfield_10100','customfield_10011'];"
     jsCode = jsCode & "for (var i = 0; i < epicFieldIds.length; i++) {"
     jsCode = jsCode & "var val = fields[epicFieldIds[i]];"
     jsCode = jsCode & "if (val !== null && val !== undefined && val !== '') {"
@@ -693,7 +693,7 @@ Private Function GetEpicLink(fields As Object) As String
     Dim epicObj As Object
 
     ' Common Epic Link custom field IDs
-    fieldIds = Array("customfield_10014", "customfield_10008", "customfield_10100", "customfield_10011")
+    fieldIds = Array("customfield_10109", "customfield_10014", "customfield_10008", "customfield_10100", "customfield_10011")
 
     On Error Resume Next
 
@@ -708,6 +708,7 @@ Private Function GetEpicLink(fields As Object) As String
             ' Check if it's a string (direct epic key)
             If VarType(fieldValue) = vbString Then
                 If Len(fieldValue) > 0 Then
+                    Debug.Print "Epic Link found (string) in field " & fieldId & ": " & fieldValue
                     GetEpicLink = fieldValue
                     Exit Function
                 End If
@@ -719,6 +720,7 @@ Private Function GetEpicLink(fields As Object) As String
                     Err.Clear
                     epicLink = CallByName(epicObj, "key", VbGet)
                     If Err.Number = 0 And Len(epicLink) > 0 Then
+                        Debug.Print "Epic Link found (object.key) in field " & fieldId & ": " & epicLink
                         GetEpicLink = epicLink
                         Exit Function
                     End If
