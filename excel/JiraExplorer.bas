@@ -429,7 +429,6 @@ Private Sub DisplayFieldExplorerSimple(ws As Worksheet, issueKey As String, issu
                          "resolution", "customfield_10014", "customfield_10008", "customfield_10011")
 
     ' Add function to get field value - build in parts to avoid line continuation limit
-    Dim jsCode As String
     jsCode = "function getFieldVal(fieldKey) { try { var fields = issueObj.fields;"
     jsCode = jsCode & "if (!fields) return '[No fields]';"
     jsCode = jsCode & "if (!fields.hasOwnProperty(fieldKey)) return '';"
@@ -690,11 +689,10 @@ Private Function GetEpicLink(fields As Object) As String
     Dim epicLink As String
     Dim fieldIds As Variant
     Dim fieldId As Variant
+    Dim fieldValue As Variant
+    Dim epicObj As Object
 
     ' Common Epic Link custom field IDs
-    ' customfield_10014 - Jira Cloud default
-    ' customfield_10008 - Common in Jira Server
-    ' customfield_10100 - Another common ID
     fieldIds = Array("customfield_10014", "customfield_10008", "customfield_10100", "customfield_10011")
 
     On Error Resume Next
@@ -702,20 +700,51 @@ Private Function GetEpicLink(fields As Object) As String
     ' Try each possible field ID
     For Each fieldId In fieldIds
         Err.Clear
-        epicLink = GetValue(fields, CStr(fieldId))
 
-        If Err.Number = 0 And Len(epicLink) > 0 Then
-            GetEpicLink = epicLink
-            Exit Function
+        ' Try to get the field value
+        fieldValue = CallByName(fields, CStr(fieldId), VbGet)
+
+        If Err.Number = 0 Then
+            ' Check if it's a string (direct epic key)
+            If VarType(fieldValue) = vbString Then
+                If Len(fieldValue) > 0 Then
+                    GetEpicLink = fieldValue
+                    Exit Function
+                End If
+            ' Check if it's an object (epic link object with .key property)
+            ElseIf IsObject(fieldValue) Then
+                Set epicObj = fieldValue
+                If Not epicObj Is Nothing Then
+                    ' Try to get the key property
+                    Err.Clear
+                    epicLink = CallByName(epicObj, "key", VbGet)
+                    If Err.Number = 0 And Len(epicLink) > 0 Then
+                        GetEpicLink = epicLink
+                        Exit Function
+                    End If
+                End If
+            End If
         End If
     Next fieldId
 
     ' If not found in custom fields, try standard epic link field name
     Err.Clear
-    epicLink = GetValue(fields, "epicLink")
-    If Err.Number = 0 And Len(epicLink) > 0 Then
-        GetEpicLink = epicLink
-        Exit Function
+    fieldValue = CallByName(fields, "epicLink", VbGet)
+    If Err.Number = 0 Then
+        If VarType(fieldValue) = vbString And Len(fieldValue) > 0 Then
+            GetEpicLink = fieldValue
+            Exit Function
+        ElseIf IsObject(fieldValue) Then
+            Set epicObj = fieldValue
+            If Not epicObj Is Nothing Then
+                Err.Clear
+                epicLink = CallByName(epicObj, "key", VbGet)
+                If Err.Number = 0 And Len(epicLink) > 0 Then
+                    GetEpicLink = epicLink
+                    Exit Function
+                End If
+            End If
+        End If
     End If
 
     On Error GoTo 0
