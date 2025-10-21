@@ -407,12 +407,16 @@ End Sub
 ' ==========================================
 Private Sub DisplayFieldExplorerSimple(ws As Worksheet, issueKey As String, issueJson As String)
     Dim row As Long
-    Dim scriptControl As Object
     Dim commonFields As Variant
     Dim i As Long
     Dim fieldKey As String
     Dim fieldName As String
     Dim fieldValue As String
+    Dim jsonResponse As Object
+    Dim issueObj As Object
+    Dim fieldsObj As Object
+
+    On Error Resume Next
 
     ' Clear existing data
     ws.Rows("3:" & ws.Rows.Count).ClearContents
@@ -420,18 +424,44 @@ Private Sub DisplayFieldExplorerSimple(ws As Worksheet, issueKey As String, issu
     ' Set issue key
     ws.Range("B1").Value = issueKey
 
-    ' Create ScriptControl for accessing values
-    Set scriptControl = CreateObject("ScriptControl")
-    scriptControl.Language = "JScript"
+    ' Parse JSON using VBA-JSON
+    Set jsonResponse = JsonConverter.ParseJson(issueJson)
 
-    ' Parse JSON and extract issue
-    ' For Jira Server, the response has issues array; for Cloud, it's the issue directly
-    Dim jsCode As String
-    jsCode = "var rawData = " & issueJson & ";"
-    jsCode = jsCode & "var issueObj = rawData.issues ? rawData.issues[0] : rawData;"
-    scriptControl.AddCode jsCode
+    If jsonResponse Is Nothing Then
+        Debug.Print "Failed to parse JSON"
+        Exit Sub
+    End If
 
-    Debug.Print "JSON loaded into ScriptControl"
+    ' Extract issue object - for Jira Server, the response has issues array; for Cloud, it's the issue directly
+    If TypeName(jsonResponse) = "Dictionary" Then
+        ' Check if it has an "issues" property (Jira Server response)
+        Err.Clear
+        Set issueObj = jsonResponse.Item("issues")
+        If Err.Number = 0 And Not issueObj Is Nothing Then
+            ' It's a search result with issues array
+            If TypeName(issueObj) = "Collection" And issueObj.Count > 0 Then
+                Set issueObj = issueObj.Item(1)  ' Get first issue
+            End If
+        Else
+            ' It's a direct issue object (Jira Cloud response)
+            Set issueObj = jsonResponse
+        End If
+        Err.Clear
+    End If
+
+    If issueObj Is Nothing Then
+        Debug.Print "Could not extract issue object"
+        Exit Sub
+    End If
+
+    ' Get fields object
+    Set fieldsObj = issueObj.Item("fields")
+    If fieldsObj Is Nothing Then
+        Debug.Print "Could not extract fields object"
+        Exit Sub
+    End If
+
+    Debug.Print "Fields object type: " & TypeName(fieldsObj)
 
     ' Define common Jira fields to display
     commonFields = Array("summary", "description", "status", "priority", "assignee", _
@@ -439,57 +469,7 @@ Private Sub DisplayFieldExplorerSimple(ws As Worksheet, issueKey As String, issu
                          "issuetype", "project", "components", "labels", "fixVersions", _
                          "versions", "timeoriginalestimate", "timeestimate", "timespent", _
                          "aggregatetimeoriginalestimate", "aggregatetimeestimate", "aggregatetimespent", _
-                         "resolution", "customfield_10109", "customfield_10014", "customfield_10008", "customfield_10011")
-
-    ' Add function to get field value - build in parts to avoid line continuation limit
-    jsCode = "function getFieldVal(fieldKey) { try { var fields = issueObj.fields;"
-    jsCode = jsCode & "if (!fields) return '[No fields]';"
-    jsCode = jsCode & "if (!fields.hasOwnProperty(fieldKey)) return '';"
-    jsCode = jsCode & "var val = fields[fieldKey];"
-    jsCode = jsCode & "if (val === null || val === undefined) return '';"
-    jsCode = jsCode & "if (typeof val === 'string') return val;"
-    jsCode = jsCode & "if (typeof val === 'number') return String(val);"
-    jsCode = jsCode & "if (typeof val === 'boolean') return val ? 'true' : 'false';"
-    jsCode = jsCode & "if (typeof val === 'object') {"
-    jsCode = jsCode & "if (val.constructor && val.constructor.toString().indexOf('Array') > -1) {"
-    jsCode = jsCode & "var items = []; for (var i = 0; i < val.length; i++) {"
-    jsCode = jsCode & "var item = val[i];"
-    jsCode = jsCode & "if (typeof item === 'string') items.push(item);"
-    jsCode = jsCode & "else if (item && item.name) items.push(item.name);"
-    jsCode = jsCode & "else if (item && item.value) items.push(item.value);"
-    jsCode = jsCode & "else if (item && item.key) items.push(item.key); }"
-    jsCode = jsCode & "return items.length > 0 ? items.join(', ') : ''; }"
-    jsCode = jsCode & "if (val.name) return val.name;"
-    jsCode = jsCode & "if (val.value) return val.value;"
-    jsCode = jsCode & "if (val.displayName) return val.displayName;"
-    jsCode = jsCode & "if (val.key) return val.key;"
-    jsCode = jsCode & "if (val.self) return ''; return ''; }"
-    jsCode = jsCode & "return String(val);"
-    jsCode = jsCode & "} catch(e) { return ''; } }"
-    scriptControl.AddCode jsCode
-
-    ' Add function to get Epic Link
-    jsCode = "function getEpicLink() { try { var fields = issueObj.fields;"
-    jsCode = jsCode & "if (!fields) return '';"
-    jsCode = jsCode & "var epicFieldIds = ['customfield_10109','customfield_10014','customfield_10008','customfield_10100','customfield_10011'];"
-    jsCode = jsCode & "for (var i = 0; i < epicFieldIds.length; i++) {"
-    jsCode = jsCode & "var val = fields[epicFieldIds[i]];"
-    jsCode = jsCode & "if (val !== null && val !== undefined && val !== '') {"
-    jsCode = jsCode & "if (typeof val === 'string') return val;"
-    jsCode = jsCode & "if (typeof val === 'object' && val.key) return val.key; } }"
-    jsCode = jsCode & "return ''; } catch(e) { return ''; } }"
-    scriptControl.AddCode jsCode
-
-    ' Add debug function to check field type
-    jsCode = "function getFieldType(fieldKey) { try {"
-    jsCode = jsCode & "var fields = issueObj.fields;"
-    jsCode = jsCode & "if (!fields || !fields.hasOwnProperty(fieldKey)) return 'missing';"
-    jsCode = jsCode & "var val = fields[fieldKey];"
-    jsCode = jsCode & "if (val === null) return 'null';"
-    jsCode = jsCode & "if (val === undefined) return 'undefined';"
-    jsCode = jsCode & "return typeof val;"
-    jsCode = jsCode & "} catch(e) { return 'error: ' + e.message; } }"
-    scriptControl.AddCode jsCode
+                         "resolution", "customfield_10102", "customfield_10109", "customfield_10014", "customfield_10008", "customfield_10011")
 
     ' Display fields
     row = 3
@@ -503,50 +483,30 @@ Private Sub DisplayFieldExplorerSimple(ws As Worksheet, issueKey As String, issu
             fieldName = fieldKey
         End If
 
-        ' Check field type for debugging
-        Dim fieldType As String
-        On Error Resume Next
-        fieldType = scriptControl.Run("getFieldType", fieldKey)
-        If Err.Number <> 0 Then
-            fieldType = "error"
-            Err.Clear
-        End If
-
-        Debug.Print "Field '" & fieldKey & "' type: " & fieldType
-
-        ' Get field value
-        fieldValue = scriptControl.Run("getFieldVal", fieldKey)
-        If Err.Number <> 0 Then
-            Debug.Print "Error getting field '" & fieldKey & "': " & Err.Description
-            fieldValue = ""
-            Err.Clear
-        End If
-        On Error GoTo 0
+        ' Get field value using helper function
+        fieldValue = FormatDictFieldValue(fieldsObj, fieldKey)
 
         ' Only display if field has a value
         If Len(fieldValue) > 0 Then
-            Debug.Print "Field '" & fieldKey & "' = '" & fieldValue & "'"
+            Debug.Print "Field '" & fieldKey & "' = '" & Left(fieldValue, 50) & "'"
             ws.Cells(row, 1).Value = fieldName
             ws.Cells(row, 2).Value = fieldValue
             row = row + 1
         End If
     Next i
 
-    ' Add Epic Link field (try multiple custom field IDs)
-    On Error Resume Next
-    fieldValue = scriptControl.Run("getEpicLink")
-    If Err.Number = 0 And Len(fieldValue) > 0 Then
+    ' Add Epic Link field
+    fieldValue = GetEpicLink(fieldsObj)
+    If Len(fieldValue) > 0 Then
         ws.Cells(row, 1).Value = "Epic Link"
         ws.Cells(row, 2).Value = fieldValue
         row = row + 1
     End If
-    Err.Clear
-    On Error GoTo 0
 
     ' Auto-fit columns
     ws.Columns("A:B").AutoFit
 
-    Set scriptControl = Nothing
+    On Error GoTo 0
 End Sub
 
 ' ==========================================
@@ -646,6 +606,112 @@ Private Function FormatFieldValue(value As Variant) As String
     Else
         FormatFieldValue = CStr(value)
     End If
+End Function
+
+' ==========================================
+' Function: FormatDictFieldValue
+' Description: Format Dictionary field value for display (VBA-JSON compatible)
+' Parameters:
+'   fieldsObj - Dictionary object containing fields
+'   fieldKey - Key of the field to format
+' Returns: Formatted string value
+' ==========================================
+Private Function FormatDictFieldValue(fieldsObj As Object, fieldKey As String) As String
+    Dim fieldValue As Variant
+    Dim result As String
+    Dim item As Variant
+    Dim items As Collection
+
+    On Error Resume Next
+
+    ' Get field value
+    fieldValue = fieldsObj.Item(fieldKey)
+
+    If Err.Number <> 0 Or IsEmpty(fieldValue) Or IsNull(fieldValue) Then
+        FormatDictFieldValue = ""
+        Err.Clear
+        Exit Function
+    End If
+
+    Err.Clear
+
+    ' Format based on type
+    If IsObject(fieldValue) Then
+        ' Check if it's a Dictionary (single object)
+        If TypeName(fieldValue) = "Dictionary" Then
+            ' Try common properties
+            result = ""
+
+            ' Try "name" property
+            On Error Resume Next
+            result = fieldValue.Item("name")
+            If Err.Number <> 0 Or IsEmpty(result) Then
+                Err.Clear
+                ' Try "displayName" property
+                result = fieldValue.Item("displayName")
+                If Err.Number <> 0 Or IsEmpty(result) Then
+                    Err.Clear
+                    ' Try "value" property
+                    result = fieldValue.Item("value")
+                    If Err.Number <> 0 Or IsEmpty(result) Then
+                        Err.Clear
+                        ' Try "key" property
+                        result = fieldValue.Item("key")
+                        If Err.Number <> 0 Or IsEmpty(result) Then
+                            result = ""
+                        End If
+                    End If
+                End If
+            End If
+            On Error GoTo 0
+
+            FormatDictFieldValue = result
+
+        ' Check if it's a Collection (array)
+        ElseIf TypeName(fieldValue) = "Collection" Then
+            result = ""
+            Set items = fieldValue
+
+            For Each item In items
+                If Not IsEmpty(item) And Not IsNull(item) Then
+                    If Len(result) > 0 Then result = result & ", "
+
+                    ' If item is a string, add it directly
+                    If VarType(item) = vbString Then
+                        result = result & item
+                    ' If item is a Dictionary, try to get its name/value/key
+                    ElseIf TypeName(item) = "Dictionary" Then
+                        On Error Resume Next
+                        Dim itemValue As String
+                        itemValue = item.Item("name")
+                        If Err.Number <> 0 Or Len(itemValue) = 0 Then
+                            Err.Clear
+                            itemValue = item.Item("value")
+                            If Err.Number <> 0 Or Len(itemValue) = 0 Then
+                                Err.Clear
+                                itemValue = item.Item("key")
+                                If Err.Number <> 0 Then itemValue = ""
+                            End If
+                        End If
+                        On Error GoTo 0
+
+                        If Len(itemValue) > 0 Then result = result & itemValue
+                    Else
+                        result = result & CStr(item)
+                    End If
+                End If
+            Next item
+
+            FormatDictFieldValue = result
+        Else
+            FormatDictFieldValue = ""
+        End If
+    Else
+        ' Simple value (string, number, boolean)
+        FormatDictFieldValue = CStr(fieldValue)
+    End If
+
+    On Error GoTo 0
 End Function
 
 ' ==========================================
