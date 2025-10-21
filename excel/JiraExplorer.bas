@@ -193,34 +193,41 @@ Private Sub DisplayIssues(ws As Worksheet, issues As Collection)
             On Error GoTo 0
 
             If Not fields Is Nothing Then
+                Dim epicKey As String
+
                 ws.Cells(row, 1).Value = GetDictValue(issue, "key")
                 ws.Cells(row, 2).Value = GetDictValue(fields, "summary")
                 ws.Cells(row, 3).Value = GetDictNestedValue(fields, "status", "name")
                 ws.Cells(row, 4).Value = GetDictNestedValue(fields, "priority", "name")
                 ws.Cells(row, 5).Value = GetDictNestedValue(fields, "assignee", "displayName")
-                ws.Cells(row, 6).Value = GetEpicLink(fields)
-                ws.Cells(row, 7).Value = GetLabels(fields)
-                ws.Cells(row, 8).Value = GetFixVersions(fields)
+
+                ' Get Epic Link and Epic Summary
+                epicKey = GetEpicLink(fields)
+                ws.Cells(row, 6).Value = epicKey
+                ws.Cells(row, 7).Value = GetEpicSummary(epicKey)
+
+                ws.Cells(row, 8).Value = GetLabels(fields)
+                ws.Cells(row, 9).Value = GetFixVersions(fields)
                 Dim sprintValue As String
                 sprintValue = GetSprints(fields)
                 Debug.Print "Row " & row & " Sprint value: '" & sprintValue & "'"
-                ws.Cells(row, 9).Value = sprintValue
-                ws.Cells(row, 10).Value = GetDictValue(fields, "created")
+                ws.Cells(row, 10).Value = sprintValue
+                ws.Cells(row, 11).Value = GetDictValue(fields, "created")
             End If
 
             ' Store full issue data in hidden column for detail view
-            ws.Cells(row, 11).Value = row
-            ws.Cells(row, 11).NumberFormat = "0"
+            ws.Cells(row, 12).Value = row
+            ws.Cells(row, 12).NumberFormat = "0"
 
             row = row + 1
         End If
     Next issue
 
     ' Auto-fit columns
-    ws.Columns("A:J").AutoFit
+    ws.Columns("A:K").AutoFit
 
     ' Update result count
-    ws.Range("K1").Value = "Total: " & issues.Count
+    ws.Range("L1").Value = "Total: " & issues.Count
 End Sub
 
 ' ==========================================
@@ -1008,6 +1015,97 @@ Private Function GetEpicLink(fields As Object) As String
 End Function
 
 ' ==========================================
+' Function: GetEpicSummary
+' Description: Get Epic Summary from Epic Link
+' Parameters: epicKey - Epic issue key (e.g., "PROJ-123")
+' Returns: Epic summary or empty string
+' ==========================================
+Private Function GetEpicSummary(epicKey As String) As String
+    Dim http As Object
+    Dim url As String
+    Dim response As String
+    Dim jsonResponse As Object
+    Dim fieldsObj As Object
+    Dim summary As String
+
+    On Error Resume Next
+
+    ' Return empty if no epic key
+    If Len(epicKey) = 0 Then
+        GetEpicSummary = ""
+        Exit Function
+    End If
+
+    ' Build URL to fetch epic details
+    url = JiraConfig.Config.JiraUrl & JiraConfig.GetApiPath() & "/issue/" & epicKey
+    url = url & "?fields=summary"
+
+    ' Create HTTP request
+    Set http = CreateObject("MSXML2.ServerXMLHTTP.6.0")
+    If http Is Nothing Then
+        Set http = CreateObject("MSXML2.ServerXMLHTTP")
+    End If
+    If http Is Nothing Then
+        Set http = CreateObject("MSXML2.XMLHTTP")
+    End If
+
+    If http Is Nothing Then
+        GetEpicSummary = ""
+        Exit Function
+    End If
+
+    ' Configure proxy if enabled
+    If JiraConfig.Config.UseProxy Then
+        Dim proxyUrl As String
+        proxyUrl = JiraConfig.Config.ProxyServer & ":" & CStr(JiraConfig.Config.ProxyPort)
+        http.setProxy 2, proxyUrl
+        If Len(JiraConfig.Config.ProxyUsername) > 0 Then
+            http.setProxyCredentials JiraConfig.Config.ProxyUsername, JiraConfig.Config.ProxyPassword
+        End If
+    End If
+
+    ' Execute request
+    http.Open "GET", url, False
+    http.setRequestHeader "Authorization", JiraConfig.GetAuthHeader()
+    http.setRequestHeader "Accept", "application/json"
+    http.Send
+
+    ' Check response
+    If http.Status = 200 Then
+        response = http.responseText
+
+        ' Parse JSON using VBA-JSON
+        Set jsonResponse = JsonConverter.ParseJson(response)
+
+        If Not jsonResponse Is Nothing Then
+            ' Get fields object
+            Set fieldsObj = jsonResponse.Item("fields")
+            If Not fieldsObj Is Nothing Then
+                ' Get summary
+                summary = fieldsObj.Item("summary")
+                If Err.Number = 0 And Len(summary) > 0 Then
+                    GetEpicSummary = summary
+                Else
+                    GetEpicSummary = ""
+                End If
+            Else
+                GetEpicSummary = ""
+            End If
+        Else
+            GetEpicSummary = ""
+        End If
+    Else
+        GetEpicSummary = ""
+    End If
+
+    Set http = Nothing
+    Set jsonResponse = Nothing
+    Set fieldsObj = Nothing
+
+    On Error GoTo 0
+End Function
+
+' ==========================================
 ' Subroutine: EnsureSheetExists
 ' Description: Ensure sheet exists, create if not
 ' ==========================================
@@ -1042,21 +1140,22 @@ Private Sub CreateIssuesSheetLayout()
     ws.Range("D1").Value = "Priority"
     ws.Range("E1").Value = "Assignee"
     ws.Range("F1").Value = "Epic Link"
-    ws.Range("G1").Value = "Labels"
-    ws.Range("H1").Value = "Fix Versions"
-    ws.Range("I1").Value = "Sprint"
-    ws.Range("J1").Value = "Created"
-    ws.Range("K1").Value = "Total: 0"
+    ws.Range("G1").Value = "Epic Summary"
+    ws.Range("H1").Value = "Labels"
+    ws.Range("I1").Value = "Fix Versions"
+    ws.Range("J1").Value = "Sprint"
+    ws.Range("K1").Value = "Created"
+    ws.Range("L1").Value = "Total: 0"
 
     ' Format headers
-    With ws.Range("A1:J1")
+    With ws.Range("A1:K1")
         .Font.Bold = True
         .Interior.Color = RGB(68, 114, 196)
         .Font.Color = RGB(255, 255, 255)
     End With
 
     ' Hide helper column (row number for detail view)
-    ws.Columns("K:K").Hidden = True
+    ws.Columns("L:L").Hidden = True
 
     ' Freeze panes
     On Error Resume Next
@@ -1068,7 +1167,7 @@ Private Sub CreateIssuesSheetLayout()
     ' Auto-filter (disable first if already enabled, for macOS compatibility)
     On Error Resume Next
     If ws.AutoFilterMode Then ws.AutoFilterMode = False
-    ws.Range("A1:J1").AutoFilter
+    ws.Range("A1:K1").AutoFilter
     On Error GoTo 0
 End Sub
 
