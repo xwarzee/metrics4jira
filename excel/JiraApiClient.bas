@@ -4,8 +4,10 @@ Option Explicit
 ' ==========================================
 ' Module: JiraApiClient
 ' Description: API client for Jira REST API v2 and v3
-' Compatible with: Excel 2016+
-' Dependencies: Microsoft XML, v6.0
+' Compatible with: Excel 2016+ (both 32-bit and 64-bit on Windows 11)
+' Dependencies:
+'   - Microsoft XML, v6.0 (MSXML2.ServerXMLHTTP)
+'   - JsonConverter module (VBA-JSON library for Office 64-bit compatibility)
 ' ==========================================
 
 ' ==========================================
@@ -306,7 +308,7 @@ Public Function GetFieldMetadata() As Object
     Dim response As String
     Dim jsonResponse As Object
     Dim fieldDict As Object
-    Dim field As Object
+    Dim field As Variant
 
     On Error GoTo ErrorHandler
 
@@ -330,12 +332,17 @@ Public Function GetFieldMetadata() As Object
         Set jsonResponse = ParseJson(response)
 
         ' Build dictionary of field ID to name
+        ' VBA-JSON returns a Collection for JSON arrays
         If Not jsonResponse Is Nothing Then
-            For Each field In jsonResponse
-                If Not field Is Nothing Then
-                    fieldDict(field("id")) = field("name")
-                End If
-            Next field
+            If TypeName(jsonResponse) = "Collection" Then
+                For Each field In jsonResponse
+                    If Not field Is Nothing Then
+                        If TypeName(field) = "Dictionary" Then
+                            fieldDict(field("id")) = field("name")
+                        End If
+                    End If
+                Next field
+            End If
         End If
     End If
 
@@ -352,75 +359,56 @@ End Function
 
 ' ==========================================
 ' Function: ExtractIssues
-' Description: Extract issues array from JSON response
-' Parameters: jsonResponse - Parsed JSON object
+' Description: Extract issues array from JSON response using VBA-JSON
+' Parameters: jsonResponse - Parsed JSON object (Dictionary from VBA-JSON)
+'             jsonString - Original JSON string (not used with VBA-JSON)
 ' Returns: Collection of issue dictionaries
+' Note: VBA-JSON returns Dictionary for objects and Collection for arrays
 ' ==========================================
 Private Function ExtractIssues(jsonResponse As Object, Optional jsonString As String = "") As Collection
     Dim issues As Collection
     Dim issuesArray As Object
-    Dim issue As Object
-    Dim i As Long
-    Dim scriptControl As Object
+    Dim issue As Variant
+    Dim issueCount As Long
 
     Set issues = New Collection
 
     On Error Resume Next
 
     If Not jsonResponse Is Nothing Then
-        Debug.Print "jsonResponse is not Nothing"
+        Debug.Print "jsonResponse type: " & TypeName(jsonResponse)
 
-        ' Try to access issues property
-        Set issuesArray = jsonResponse.issues
-
-        If Err.Number <> 0 Then
-            Debug.Print "Error accessing jsonResponse.issues: " & Err.Description
-            Err.Clear
-            ' Try with parentheses notation
+        ' VBA-JSON returns a Dictionary for JSON objects
+        ' Access the "issues" property using Dictionary syntax
+        If TypeName(jsonResponse) = "Dictionary" Then
             Set issuesArray = jsonResponse("issues")
+
+            If Err.Number <> 0 Then
+                Debug.Print "Error accessing jsonResponse(""issues""): " & Err.Description
+                Err.Clear
+            End If
+        Else
+            Debug.Print "Unexpected jsonResponse type: " & TypeName(jsonResponse)
         End If
 
         If Not issuesArray Is Nothing Then
-            Debug.Print "issuesArray is not Nothing"
             Debug.Print "issuesArray type: " & TypeName(issuesArray)
 
-            ' Create a new ScriptControl to access array elements properly
-            Set scriptControl = CreateObject("ScriptControl")
-            scriptControl.Language = "JScript"
+            ' VBA-JSON returns a Collection for JSON arrays
+            If TypeName(issuesArray) = "Collection" Then
+                issueCount = issuesArray.Count
+                Debug.Print "Found " & issueCount & " issues in Collection"
 
-            ' Add the full JSON response to ScriptControl
-            scriptControl.AddCode "var jiraResponse = " & jsonString & ";"
-
-            ' Add a simple stringify function for older JScript
-            scriptControl.AddCode "function getIssue(index) { return jiraResponse.issues[index]; }"
-
-            ' Get the count using JScript
-            On Error Resume Next
-            i = scriptControl.Eval("jiraResponse.issues.length")
-            Debug.Print "Array length from JScript: " & i
-
-            If Err.Number = 0 And i > 0 Then
-                ' Extract each issue directly as an object
-                Dim j As Long
-                For j = 0 To i - 1
-                    Err.Clear
-                    Set issue = Nothing
-
-                    ' Get the issue object directly from ScriptControl
-                    Set issue = scriptControl.Run("getIssue", j)
-
-                    If Err.Number = 0 And Not issue Is Nothing Then
+                ' Iterate through the Collection
+                For Each issue In issuesArray
+                    If Not issue Is Nothing Then
                         issues.Add issue
-                        Debug.Print "Successfully added issue " & j
-                    Else
-                        Debug.Print "Error getting issue " & j & ": " & Err.Description & " (Err: " & Err.Number & ")"
+                        Debug.Print "Successfully added issue (type: " & TypeName(issue) & ")"
                     End If
-                Next j
+                Next issue
             Else
-                Debug.Print "Could not get array length or array is empty. Error: " & Err.Description
+                Debug.Print "issuesArray is not a Collection, type: " & TypeName(issuesArray)
             End If
-
-            Set scriptControl = Nothing
         Else
             Debug.Print "issuesArray is Nothing"
         End If
@@ -430,33 +418,27 @@ Private Function ExtractIssues(jsonResponse As Object, Optional jsonString As St
 
     On Error GoTo 0
 
+    Debug.Print "Total issues extracted: " & issues.Count
     Set ExtractIssues = issues
 End Function
 
 ' ==========================================
 ' Function: ParseJson
-' Description: Parse JSON string to object
+' Description: Parse JSON string to object using VBA-JSON library
 ' Parameters: jsonString - JSON string to parse
-' Returns: Parsed JSON object
+' Returns: Parsed JSON object (Dictionary or Collection)
+' Note: Uses JsonConverter module for Office 64-bit compatibility
 ' ==========================================
 Private Function ParseJson(ByVal jsonString As String) As Object
-    Dim scriptControl As Object
-
     On Error GoTo ErrorHandler
 
-    Set scriptControl = CreateObject("ScriptControl")
-    scriptControl.Language = "JScript"
-
-    ' Use JScript to parse JSON
-    scriptControl.AddCode "function parseJson(json) { return eval('(' + json + ')'); }"
-    Set ParseJson = scriptControl.Run("parseJson", jsonString)
-
-    Set scriptControl = Nothing
+    ' Use VBA-JSON library (JsonConverter) which is compatible with Office 64-bit
+    Set ParseJson = JsonConverter.ParseJson(jsonString)
     Exit Function
 
 ErrorHandler:
+    Debug.Print "ParseJson Error: " & Err.Description
     Set ParseJson = Nothing
-    Set scriptControl = Nothing
 End Function
 
 ' ==========================================
