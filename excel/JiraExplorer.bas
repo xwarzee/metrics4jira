@@ -187,17 +187,17 @@ Private Sub DisplayIssues(ws As Worksheet, issues As Collection)
     row = 2
     For Each issue In issues
         If Not issue Is Nothing Then
-            ' Get fields object using CallByName for JScript compatibility
+            ' Get fields object using Dictionary.Item() for VBA-JSON compatibility
             On Error Resume Next
-            Set fields = CallByName(issue, "fields", VbGet)
+            Set fields = issue.Item("fields")
             On Error GoTo 0
 
             If Not fields Is Nothing Then
-                ws.Cells(row, 1).Value = GetValue(issue, "key")
-                ws.Cells(row, 2).Value = GetValue(fields, "summary")
-                ws.Cells(row, 3).Value = GetNestedValue(fields, "status", "name")
-                ws.Cells(row, 4).Value = GetNestedValue(fields, "priority", "name")
-                ws.Cells(row, 5).Value = GetNestedValue(fields, "assignee", "displayName")
+                ws.Cells(row, 1).Value = GetDictValue(issue, "key")
+                ws.Cells(row, 2).Value = GetDictValue(fields, "summary")
+                ws.Cells(row, 3).Value = GetDictNestedValue(fields, "status", "name")
+                ws.Cells(row, 4).Value = GetDictNestedValue(fields, "priority", "name")
+                ws.Cells(row, 5).Value = GetDictNestedValue(fields, "assignee", "displayName")
                 ws.Cells(row, 6).Value = GetEpicLink(fields)
                 ws.Cells(row, 7).Value = GetLabels(fields)
                 ws.Cells(row, 8).Value = GetFixVersions(fields)
@@ -205,7 +205,7 @@ Private Sub DisplayIssues(ws As Worksheet, issues As Collection)
                 sprintValue = GetSprints(fields)
                 Debug.Print "Row " & row & " Sprint value: '" & sprintValue & "'"
                 ws.Cells(row, 9).Value = sprintValue
-                ws.Cells(row, 10).Value = GetValue(fields, "created")
+                ws.Cells(row, 10).Value = GetDictValue(fields, "created")
             End If
 
             ' Store full issue data in hidden column for detail view
@@ -662,6 +662,31 @@ Private Function GetValue(obj As Object, key As String) As String
 End Function
 
 ' ==========================================
+' Function: GetDictValue
+' Description: Safely get value from Dictionary object (VBA-JSON compatible)
+' ==========================================
+Private Function GetDictValue(obj As Object, key As String) As String
+    On Error Resume Next
+
+    Dim result As Variant
+
+    ' Use .Item() method for Dictionary objects
+    result = obj.Item(key)
+
+    If Err.Number = 0 And Not IsEmpty(result) And Not IsNull(result) Then
+        If IsObject(result) Then
+            GetDictValue = ""
+        Else
+            GetDictValue = CStr(result)
+        End If
+    Else
+        GetDictValue = ""
+    End If
+
+    On Error GoTo 0
+End Function
+
+' ==========================================
 ' Function: GetNestedValue
 ' Description: Safely get nested value from object (JScript compatible)
 ' ==========================================
@@ -688,15 +713,43 @@ Private Function GetNestedValue(obj As Object, key1 As String, key2 As String) A
 End Function
 
 ' ==========================================
+' Function: GetDictNestedValue
+' Description: Safely get nested value from Dictionary object (VBA-JSON compatible)
+' ==========================================
+Private Function GetDictNestedValue(obj As Object, key1 As String, key2 As String) As String
+    Dim nested As Object
+    On Error Resume Next
+
+    ' Try to get nested Dictionary using .Item() method
+    Set nested = obj.Item(key1)
+
+    If Err.Number = 0 And Not nested Is Nothing Then
+        Dim result As Variant
+        result = nested.Item(key2)
+        If Err.Number = 0 And Not IsEmpty(result) And Not IsNull(result) Then
+            If IsObject(result) Then
+                GetDictNestedValue = ""
+            Else
+                GetDictNestedValue = CStr(result)
+            End If
+        Else
+            GetDictNestedValue = ""
+        End If
+    Else
+        GetDictNestedValue = ""
+    End If
+
+    On Error GoTo 0
+End Function
+
+' ==========================================
 ' Function: GetEpicLink
 ' Description: Get Epic Link from fields (tries multiple custom field IDs)
 ' ==========================================
 Private Function GetSprints(fields As Object) As String
-    Dim scriptControl As Object
-    Dim sprintArray As Object
+    Dim sprintsCollection As Object
+    Dim sprint As Variant
     Dim sprintNames As String
-    Dim i As Long
-    Dim sprintStr As String
     Dim sprintName As String
 
     On Error Resume Next
@@ -708,65 +761,49 @@ Private Function GetSprints(fields As Object) As String
     Dim fieldId As Variant
     For Each fieldId In fieldIds
         Err.Clear
-        Set sprintArray = Nothing
-        Set sprintArray = fields(fieldId)
+        Set sprintsCollection = Nothing
+        Set sprintsCollection = fields.Item(fieldId)
 
-        If Not sprintArray Is Nothing Then
-            Debug.Print "Found sprint array in field: " & fieldId
+        If Not sprintsCollection Is Nothing Then
+            Debug.Print "Found sprint collection in field: " & fieldId
+            Debug.Print "Sprint collection type: " & TypeName(sprintsCollection)
 
-            ' Create ScriptControl to get array length
-            Set scriptControl = CreateObject("ScriptControl")
-            scriptControl.Language = "JScript"
-            scriptControl.AddObject "sprintArr", sprintArray, True
-
-            ' Get array length
-            Dim arrayLength As Long
-            scriptControl.AddCode "function getLength() { return sprintArr.length; }"
-            arrayLength = scriptControl.Run("getLength")
-
-            Debug.Print "Sprint array length: " & arrayLength
-
-            If arrayLength > 0 Then
-                ' Extract each sprint name
+            ' VBA-JSON returns Collection for arrays
+            If TypeName(sprintsCollection) = "Collection" Then
                 sprintNames = ""
 
-                For i = 0 To arrayLength - 1
-                    Err.Clear
+                For Each sprint In sprintsCollection
+                    sprintName = ""
 
-                    ' Get sprint element as string
-                    Dim getElemCode As String
-                    getElemCode = "function getElement() { return sprintArr[" & i & "]; }"
-                    scriptControl.AddCode getElemCode
-                    sprintStr = scriptControl.Run("getElement")
-
-                    If Err.Number = 0 And Len(sprintStr) > 0 Then
-                        Debug.Print "Sprint[" & i & "]: " & Left(sprintStr, 100)
-
-                        ' Extract name using regex
-                        ' Format: "...name=Sprint #13,..." or "...name="Sprint #13",..."
-                        sprintName = ExtractSprintName(sprintStr)
-
-                        If Len(sprintName) > 0 Then
-                            If Len(sprintNames) > 0 Then
-                                sprintNames = sprintNames & ", "
-                            End If
-                            sprintNames = sprintNames & sprintName
+                    ' Sprints can be either Dictionary objects or strings
+                    If TypeName(sprint) = "Dictionary" Then
+                        ' Sprint is an object with properties
+                        Err.Clear
+                        sprintName = sprint.Item("name")
+                        If Err.Number <> 0 Then
+                            sprintName = ""
+                            Err.Clear
                         End If
-                    Else
-                        Debug.Print "Error getting sprint[" & i & "]: " & Err.Description
+                    ElseIf VarType(sprint) = vbString Then
+                        ' Sprint is a string representation, extract name
+                        sprintName = ExtractSprintName(CStr(sprint))
                     End If
-                Next i
+
+                    If Len(sprintName) > 0 Then
+                        If Len(sprintNames) > 0 Then
+                            sprintNames = sprintNames & ", "
+                        End If
+                        sprintNames = sprintNames & sprintName
+                    End If
+                Next sprint
 
                 If Len(sprintNames) > 0 Then
                     GetSprints = sprintNames
                     Debug.Print "Final sprints: " & sprintNames
-                    Set scriptControl = Nothing
                     On Error GoTo 0
                     Exit Function
                 End If
             End If
-
-            Set scriptControl = Nothing
         End If
     Next fieldId
 
@@ -813,92 +850,73 @@ Private Function ExtractSprintName(sprintStr As String) As String
 End Function
 
 Private Function GetFixVersions(fields As Object) As String
-    Dim scriptControl As Object
-    Dim jsCode As String
+    Dim versionsCollection As Object
+    Dim version As Variant
+    Dim versionName As String
     Dim result As String
 
     On Error Resume Next
 
-    ' Create ScriptControl to handle JScript array properly
-    Set scriptControl = CreateObject("ScriptControl")
-    scriptControl.Language = "JScript"
+    ' Get fixVersions using .Item()
+    Set versionsCollection = fields.Item("fixVersions")
 
-    ' Add the fields object
-    scriptControl.AddObject "fieldsObj", fields, True
-
-    ' Create JavaScript function to extract and join fix versions
-    jsCode = "function getFixVersions() {"
-    jsCode = jsCode & "  try {"
-    jsCode = jsCode & "    var versions = fieldsObj.fixVersions;"
-    jsCode = jsCode & "    if (!versions || versions.length === 0) return '';"
-    jsCode = jsCode & "    var result = [];"
-    jsCode = jsCode & "    for (var i = 0; i < versions.length; i++) {"
-    jsCode = jsCode & "      if (typeof versions[i] === 'string') {"
-    jsCode = jsCode & "        result.push(versions[i]);"
-    jsCode = jsCode & "      } else if (versions[i] && versions[i].name) {"
-    jsCode = jsCode & "        result.push(versions[i].name);"
-    jsCode = jsCode & "      }"
-    jsCode = jsCode & "    }"
-    jsCode = jsCode & "    return result.join(', ');"
-    jsCode = jsCode & "  } catch(e) { return ''; }"
-    jsCode = jsCode & "}"
-
-    scriptControl.AddCode jsCode
-
-    ' Execute the function
-    result = scriptControl.Run("getFixVersions")
-
-    If Err.Number = 0 Then
-        GetFixVersions = result
+    If Err.Number = 0 And Not versionsCollection Is Nothing Then
+        ' VBA-JSON returns Collection for arrays
+        If TypeName(versionsCollection) = "Collection" Then
+            result = ""
+            For Each version In versionsCollection
+                If Not version Is Nothing Then
+                    ' Each version is a Dictionary
+                    If TypeName(version) = "Dictionary" Then
+                        versionName = version.Item("name")
+                        If Err.Number = 0 And Len(versionName) > 0 Then
+                            If Len(result) > 0 Then result = result & ", "
+                            result = result & versionName
+                        End If
+                        Err.Clear
+                    End If
+                End If
+            Next version
+            GetFixVersions = result
+        Else
+            GetFixVersions = ""
+        End If
     Else
         GetFixVersions = ""
     End If
 
-    Set scriptControl = Nothing
     On Error GoTo 0
 End Function
 
 Private Function GetLabels(fields As Object) As String
-    Dim scriptControl As Object
-    Dim jsCode As String
+    Dim labelsCollection As Object
+    Dim label As Variant
     Dim result As String
 
     On Error Resume Next
 
-    ' Create ScriptControl to handle JScript array properly
-    Set scriptControl = CreateObject("ScriptControl")
-    scriptControl.Language = "JScript"
+    ' Get labels using .Item()
+    Set labelsCollection = fields.Item("labels")
 
-    ' Add the fields object
-    scriptControl.AddObject "fieldsObj", fields, True
-
-    ' Create JavaScript function to extract and join labels
-    jsCode = "function getLabels() {"
-    jsCode = jsCode & "  try {"
-    jsCode = jsCode & "    var labels = fieldsObj.labels;"
-    jsCode = jsCode & "    if (!labels || labels.length === 0) return '';"
-    jsCode = jsCode & "    var result = [];"
-    jsCode = jsCode & "    for (var i = 0; i < labels.length; i++) {"
-    jsCode = jsCode & "      if (typeof labels[i] === 'string') {"
-    jsCode = jsCode & "        result.push(labels[i]);"
-    jsCode = jsCode & "      }"
-    jsCode = jsCode & "    }"
-    jsCode = jsCode & "    return result.join(', ');"
-    jsCode = jsCode & "  } catch(e) { return ''; }"
-    jsCode = jsCode & "}"
-
-    scriptControl.AddCode jsCode
-
-    ' Execute the function
-    result = scriptControl.Run("getLabels")
-
-    If Err.Number = 0 Then
-        GetLabels = result
+    If Err.Number = 0 And Not labelsCollection Is Nothing Then
+        ' VBA-JSON returns Collection for arrays
+        If TypeName(labelsCollection) = "Collection" Then
+            result = ""
+            For Each label In labelsCollection
+                ' Labels are simple strings
+                If Not IsEmpty(label) And Not IsNull(label) Then
+                    If Len(result) > 0 Then result = result & ", "
+                    result = result & CStr(label)
+                End If
+            Next label
+            GetLabels = result
+        Else
+            GetLabels = ""
+        End If
     Else
         GetLabels = ""
     End If
 
-    Set scriptControl = Nothing
     On Error GoTo 0
 End Function
 
@@ -918,8 +936,8 @@ Private Function GetEpicLink(fields As Object) As String
     For Each fieldId In fieldIds
         Err.Clear
 
-        ' Try to get the field value
-        fieldValue = CallByName(fields, CStr(fieldId), VbGet)
+        ' Try to get the field value using .Item()
+        fieldValue = fields.Item(CStr(fieldId))
 
         If Err.Number = 0 Then
             ' Check if it's a string (direct epic key)
@@ -935,7 +953,7 @@ Private Function GetEpicLink(fields As Object) As String
                 If Not epicObj Is Nothing Then
                     ' Try to get the key property
                     Err.Clear
-                    epicLink = CallByName(epicObj, "key", VbGet)
+                    epicLink = epicObj.Item("key")
                     If Err.Number = 0 And Len(epicLink) > 0 Then
                         Debug.Print "Epic Link found (object.key) in field " & fieldId & ": " & epicLink
                         GetEpicLink = epicLink
@@ -948,7 +966,7 @@ Private Function GetEpicLink(fields As Object) As String
 
     ' If not found in custom fields, try standard epic link field name
     Err.Clear
-    fieldValue = CallByName(fields, "epicLink", VbGet)
+    fieldValue = fields.Item("epicLink")
     If Err.Number = 0 Then
         If VarType(fieldValue) = vbString And Len(fieldValue) > 0 Then
             GetEpicLink = fieldValue
@@ -957,7 +975,7 @@ Private Function GetEpicLink(fields As Object) As String
             Set epicObj = fieldValue
             If Not epicObj Is Nothing Then
                 Err.Clear
-                epicLink = CallByName(epicObj, "key", VbGet)
+                epicLink = epicObj.Item("key")
                 If Err.Number = 0 And Len(epicLink) > 0 Then
                     GetEpicLink = epicLink
                     Exit Function
