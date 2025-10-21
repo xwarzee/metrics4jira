@@ -943,9 +943,15 @@ Private Function GetEpicLink(fields As Object) As String
             ' Check if it's a string (direct epic key)
             If VarType(fieldValue) = vbString Then
                 If Len(fieldValue) > 0 Then
-                    Debug.Print "Epic Link found (string) in field " & fieldId & ": " & fieldValue
-                    GetEpicLink = fieldValue
-                    Exit Function
+                    ' Validate that it looks like a Jira issue key (e.g., "PROJ-123")
+                    ' Issue keys contain a hyphen and are at least 3 characters
+                    If InStr(fieldValue, "-") > 0 And Len(fieldValue) >= 3 Then
+                        Debug.Print "Epic Link found (string) in field " & fieldId & ": " & fieldValue
+                        GetEpicLink = fieldValue
+                        Exit Function
+                    Else
+                        Debug.Print "Ignoring invalid Epic Link format in field " & fieldId & ": " & fieldValue
+                    End If
                 End If
             ' Check if it's an object (epic link object with .key property)
             ElseIf IsObject(fieldValue) Then
@@ -955,9 +961,14 @@ Private Function GetEpicLink(fields As Object) As String
                     Err.Clear
                     epicLink = epicObj.Item("key")
                     If Err.Number = 0 And Len(epicLink) > 0 Then
-                        Debug.Print "Epic Link found (object.key) in field " & fieldId & ": " & epicLink
-                        GetEpicLink = epicLink
-                        Exit Function
+                        ' Validate that it looks like a Jira issue key
+                        If InStr(epicLink, "-") > 0 And Len(epicLink) >= 3 Then
+                            Debug.Print "Epic Link found (object.key) in field " & fieldId & ": " & epicLink
+                            GetEpicLink = epicLink
+                            Exit Function
+                        Else
+                            Debug.Print "Ignoring invalid Epic Link format (object.key) in field " & fieldId & ": " & epicLink
+                        End If
                     End If
                 End If
             End If
@@ -969,16 +980,22 @@ Private Function GetEpicLink(fields As Object) As String
     fieldValue = fields.Item("epicLink")
     If Err.Number = 0 Then
         If VarType(fieldValue) = vbString And Len(fieldValue) > 0 Then
-            GetEpicLink = fieldValue
-            Exit Function
+            ' Validate that it looks like a Jira issue key
+            If InStr(fieldValue, "-") > 0 And Len(fieldValue) >= 3 Then
+                GetEpicLink = fieldValue
+                Exit Function
+            End If
         ElseIf IsObject(fieldValue) Then
             Set epicObj = fieldValue
             If Not epicObj Is Nothing Then
                 Err.Clear
                 epicLink = epicObj.Item("key")
                 If Err.Number = 0 And Len(epicLink) > 0 Then
-                    GetEpicLink = epicLink
-                    Exit Function
+                    ' Validate that it looks like a Jira issue key
+                    If InStr(epicLink, "-") > 0 And Len(epicLink) >= 3 Then
+                        GetEpicLink = epicLink
+                        Exit Function
+                    End If
                 End If
             End If
         End If
