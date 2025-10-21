@@ -928,7 +928,7 @@ Private Function GetEpicLink(fields As Object) As String
     Dim epicObj As Object
 
     ' Common Epic Link custom field IDs
-    fieldIds = Array("customfield_10109", "customfield_10014", "customfield_10008", "customfield_10100", "customfield_10011")
+    fieldIds = Array("customfield_10102", "customfield_10109", "customfield_10014", "customfield_10008", "customfield_10100", "customfield_10011")
 
     On Error Resume Next
 
