@@ -337,9 +337,14 @@ Public Function GetFieldMetadata() As Object
             If TypeName(jsonResponse) = "Collection" Then
                 For Each field In jsonResponse
                     If Not field Is Nothing Then
-                        If TypeName(field) = "Dictionary" Then
-                            fieldDict(field("id")) = field("name")
+                        ' Use .Item() method to access Dictionary properties
+                        On Error Resume Next
+                        fieldDict(field.Item("id")) = field.Item("name")
+                        If Err.Number <> 0 Then
+                            Debug.Print "Error accessing field properties: " & Err.Description
+                            Err.Clear
                         End If
+                        On Error GoTo ErrorHandler
                     End If
                 Next field
             End If
@@ -379,16 +384,14 @@ Private Function ExtractIssues(jsonResponse As Object, Optional jsonString As St
         Debug.Print "jsonResponse type: " & TypeName(jsonResponse)
 
         ' VBA-JSON returns a Dictionary for JSON objects
-        ' Access the "issues" property using Dictionary syntax
-        If TypeName(jsonResponse) = "Dictionary" Then
-            Set issuesArray = jsonResponse("issues")
+        ' Access the "issues" property using Dictionary.Item() method
+        ' Note: On Windows with UseScriptingDictionaryIfAvailable=True,
+        ' the Dictionary class wraps Scripting.Dictionary
+        Set issuesArray = jsonResponse.Item("issues")
 
-            If Err.Number <> 0 Then
-                Debug.Print "Error accessing jsonResponse(""issues""): " & Err.Description
-                Err.Clear
-            End If
-        Else
-            Debug.Print "Unexpected jsonResponse type: " & TypeName(jsonResponse)
+        If Err.Number <> 0 Then
+            Debug.Print "Error accessing jsonResponse.Item(""issues""): " & Err.Description
+            Err.Clear
         End If
 
         If Not issuesArray Is Nothing Then
