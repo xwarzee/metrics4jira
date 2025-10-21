@@ -495,12 +495,16 @@ Private Sub DisplayFieldExplorerSimple(ws As Worksheet, issueKey As String, issu
         End If
     Next i
 
-    ' Add Epic Link field
-    fieldValue = GetEpicLink(fieldsObj)
-    If Len(fieldValue) > 0 Then
-        ws.Cells(row, 1).Value = "Epic Link"
-        ws.Cells(row, 2).Value = fieldValue
-        row = row + 1
+    ' Add Epic Summary field
+    Dim epicKey As String
+    epicKey = GetEpicLink(fieldsObj)
+    If Len(epicKey) > 0 Then
+        fieldValue = GetEpicSummary(epicKey)
+        If Len(fieldValue) > 0 Then
+            ws.Cells(row, 1).Value = "Epic Summary"
+            ws.Cells(row, 2).Value = fieldValue
+            row = row + 1
+        End If
     End If
 
     ' Auto-fit columns
